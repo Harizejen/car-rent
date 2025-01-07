@@ -1,3 +1,7 @@
+<?php
+include 'db/db.php';
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -23,7 +27,6 @@
     <link href="lib/animate/animate.min.css" rel="stylesheet">
     <link href="lib/owlcarousel/assets/owl.carousel.min.css" rel="stylesheet">
 
-
     <!-- Customized Bootstrap Stylesheet -->
     <link href="css/bootstrap.min.css" rel="stylesheet">
 
@@ -32,7 +35,8 @@
     <style>
         /* Adjust brightness of the carousel image */
         #carouselImage {
-            filter: brightness(1.2); /* Adjust brightness here */
+            filter: brightness(1.2);
+            /* Adjust brightness here */
         }
     </style>
 </head>
@@ -71,29 +75,28 @@
             <nav class="navbar navbar-expand-lg navbar-light">
                 <a href="" class="navbar-brand p-0">
                     <h1 class="display-6 text-primary"><i class="fas fa-car-alt me-3"></i></i>Cental</h1>
-                    <!-- <img src="img/logo.png" alt="Logo"> -->
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
                     <span class="fa fa-bars"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="navbarCollapse">
                     <div class="navbar-nav mx-auto py-0">
-                        <a href="index.html" class="nav-item nav-link active">Home</a>
-                        <a href="about.html" class="nav-item nav-link">About</a>
-                        <a href="service.html" class="nav-item nav-link">Service</a>
-                        <a href="blog.html" class="nav-item nav-link">Blog</a>
+                        <a href="index.php" class="nav-item nav-link active">Home</a>
+                        <a href="about.php" class="nav-item nav-link">About</a>
+                        <a href="service.php" class="nav-item nav-link">Service</a>
+                        <a href="blog.php" class="nav-item nav-link">Blog</a>
 
                         <div class="nav-item dropdown">
                             <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Pages</a>
                             <div class="dropdown-menu m-0">
-                                <a href="feature.html" class="dropdown-item">Our Feature</a>
-                                <a href="cars.html" class="dropdown-item">Our Cars</a>
-                                <a href="team.html" class="dropdown-item">Our Team</a>
-                                <a href="testimonial.html" class="dropdown-item">Testimonial</a>
-                                <a href="404.html" class="dropdown-item">404 Page</a>
+                                <a href="feature.php" class="dropdown-item">Our Feature</a>
+                                <a href="cars.php" class="dropdown-item">Our Cars</a>
+                                <a href="team.php" class="dropdown-item">Our Team</a>
+                                <a href="testimonial.php" class="dropdown-item">Testimonial</a>
+                                <a href="404.php" class="dropdown-item">404 Page</a>
                             </div>
                         </div>
-                        <a href="contact.html" class="nav-item nav-link">Contact</a>
+                        <a href="contact.php" class="nav-item nav-link">Contact</a>
                     </div>
                     <a href="#" class="btn btn-primary rounded-pill py-2 px-4">Get Started</a>
                 </div>
@@ -106,22 +109,18 @@
     <div class="header-carousel h-25">
         <div class="carousel-inner" role="listbox">
             <div>
-                <img src="img/carousel-2.jpg" class="img-fluid w-100 " alt="First slide" />
+                <img src="img/carousel-2.jpg" class="img-fluid w-100" alt="First slide" />
                 <div class="carousel-caption">
                     <div class="container py-4">
                         <div class="row g-5">
                             <div class="col-lg-6 fadeInLeft animated" data-animation="fadeInLeft" data-delay="1s"
                                 style="animation-delay: 1s;">
                                 <div class="bg-secondary rounded p-5">
-                                    <div class="col-lg-6 fadeInLeft animated" data-animation="fadeInLeft"
-                                        data-delay="1s" style="animation-delay: 1s;">
-
-                                    </div>
-                                    <form id="bookingForm">
+                                    <form id="bookingForm" action="/controller/addBooking.php" method="POST">
                                         <div class="row g-3">
                                             <div class="col-12">
-                                                <select class="form-select" aria-label="Default select example"
-                                                    required>
+                                                <select class="form-select" name="vehicle_id"
+                                                    aria-label="Default select example" required>
                                                     <option selected>Select Your Car type</option>
                                                     <option value="1">VW Golf VII</option>
                                                     <option value="2">Audi A1 S-Line</option>
@@ -136,7 +135,7 @@
                                                         <span class="fas fa-map-marker-alt"></span> <span
                                                             class="ms-1">Pick Up</span>
                                                     </div>
-                                                    <input class="form-control" type="text"
+                                                    <input class="form-control" type="text" name="pickup_location"
                                                         placeholder="Enter a City or Airport"
                                                         aria-label="Enter a City or Airport" required>
                                                 </div>
@@ -150,7 +149,7 @@
                                                         <span class="fas fa-map-marker-alt"></span><span
                                                             class="ms-1">Drop off</span>
                                                     </div>
-                                                    <input class="form-control" type="text"
+                                                    <input class="form-control" type="text" name="dropoff_location"
                                                         placeholder="Enter a City or Airport"
                                                         aria-label="Enter a City or Airport" required>
                                                 </div>
@@ -162,8 +161,9 @@
                                                         <span class="fas fa-calendar-alt"></span><span class="ms-1">Pick
                                                             Up</span>
                                                     </div>
-                                                    <input class="form-control" type="date" required>
-                                                    <select class="form-select ms-3" required
+                                                    <input class="form-control" type="date" name="booking_date"
+                                                        required>
+                                                    <select class="form-select ms-3" name="pickup_time" required
                                                         aria-label="Default select example">
                                                         <option selected>12:00AM</option>
                                                         <option value="1">1:00AM</option>
@@ -176,9 +176,9 @@
                                                     </select>
                                                 </div>
                                             </div>
-                                                <div class="col-12">
-                                                <button id="bookNowButton" class="btn btn-light w-100 py-2">Book
-                                                    Now</button>
+                                            <div class="col-12">
+                                                <button type="submit" id="bookNowButton"
+                                                    class="btn btn-light w-100 py-2">Book Now</button>
                                             </div>
                                         </div>
                                     </form>
@@ -187,7 +187,7 @@
                             <div class="col-lg-6 d-none d-lg-flex fadeInRight animated" data-animation="fadeInRight"
                                 data-delay="1s" style="animation-delay: 1s;">
                                 <div class="text-start text-white">
-                                    <h1 class="display-5 fw-bolder text-primary">Your Convienient, Our Desire </h1>
+                                    <h1 class="display-5 fw-bolder text-primary">Your Convenient, Our Desire</h1>
                                     <p class="text-black">Best Service, Best Deals</p>
                                 </div>
                             </div>
@@ -196,7 +196,6 @@
                 </div>
             </div>
         </div>
-    </div>
     </div>
     <!-- Carousel End -->
 
@@ -233,8 +232,7 @@
         <div class="container py-5">
             <div class="text-center mx-auto pb-5 wow fadeInUp" data-wow-delay="0.1s" style="max-width: 800px;">
                 <h1 class="display-5 text-capitalize mb-3">Cental <span class="text-primary">Features</span></h1>
-                <p class="mb-0">Provide safe and convienient transport by car
-                </p>
+                <p class="mb-0">Provide safe and convenient transport by car</p>
             </div>
             <div class="row g-4 align-items-center">
                 <div class="col-xl-4">
@@ -246,7 +244,8 @@
                                 </div>
                                 <div class="ms-4">
                                     <h5 class="mb-3">First Class Services</h5>
-                                    <p class="mb-0">Professional and trained drivers to provide safe and reliable services.</p>
+                                    <p class="mb-0">Professional and trained drivers to provide safe and reliable
+                                        services.</p>
                                 </div>
                             </div>
                         </div>
@@ -256,7 +255,7 @@
                                     <span class="fa fa-road fa-2x"></span>
                                 </div>
                                 <div class="ms-4">
-                                    <h5 class="mb-3">Secured Insurance Protection </h5>
+                                    <h5 class="mb-3">Secured Insurance Protection</h5>
                                     <p class="mb-0">Safe journey, worry free.</p>
                                 </div>
                             </div>
@@ -297,7 +296,6 @@
     </div>
     <!-- Features End -->
 
-    
     <!-- Fact Counter -->
     <div class="container-fluid counter bg-secondary py-5">
         <div class="container py-5">
@@ -360,8 +358,7 @@
         <div class="container pb-5">
             <div class="text-center mx-auto pb-5 wow fadeInUp" data-wow-delay="0.1s" style="max-width: 800px;">
                 <h1 class="display-5 text-capitalize mb-3">Vehicle <span class="text-primary">Categories</span></h1>
-                <p class="mb-0">Various car types to choose from!
-                </p>
+                <p class="mb-0">Various car types to choose from!</ ```php </p>
             </div>
             <div class="categories-carousel owl-carousel wow fadeInUp" data-wow-delay="0.1s">
                 <div class="categories-item p-4">
@@ -440,7 +437,8 @@
                                     <i class="fa fa-gas-pump text-dark"></i> <span class="text-body ms-1">Petrol</span>
                                 </div>
                                 <div class="col-4 border-end border-white">
-                                    <i class="fa fa-car text-dark"></i> <span class="text-body ms-1">2015</span>
+                                    <i class="fa fa-car text-dark ```php
+                                    "></i> <span class="text-body ms-1">2015</span>
                                 </div>
                                 <div class="col-4 border-end border-white">
                                     <i class="fa fa-cogs text-dark"></i> <span class="text-body ms-1">AUTO</span>
@@ -555,8 +553,7 @@
             <div class="text-center mx-auto pb-5 wow fadeInUp" data-wow-delay="0.1s" style="max-width: 800px;">
                 <h1 class="display-5 text-capitalize text-white mb-3">Cental<span class="text-primary"> Process</span>
                 </h1>
-                <p class="mb-0 text-white">Get your car in 3 easy steps.
-                </p>
+                <p class="mb-0 text-white">Get your car in 3 easy steps.</p>
             </div>
             <div class="row g-4">
                 <div class="col-lg-4 wow fadeInUp" data-wow-delay="0.1s">
@@ -593,7 +590,7 @@
                     <div class="footer-item d-flex flex-column">
                         <div class="footer-item">
                             <h4 class="text-white mb-4">About Us</h4>
-                            <p class="mb-3">Dolor amet sit justo amet elitr clita ipsum elitr est.Lorem ipsum dolor sit
+                            <p class="mb-3">Dolor amet sit justo amet elitr clita ipsum elitr est. Lorem ipsum dolor sit
                                 amet, consectetur adipiscing elit consectetur adipiscing elit.</p>
                         </div>
                         <div class="position-relative">
@@ -666,9 +663,6 @@
                         reserved.</span>
                 </div>
                 <div class="col-md-6 text-center text-md-end text-body">
-                    <!--/*** This template is free as long as you keep the below author’s credit link/attribution link/backlink. ***/-->
-                    <!--/*** If you'd like to use the template without the below author’s credit link/attribution link/backlink, ***/-->
-                    <!--/*** you can purchase the Credit Removal License from "https://htmlcodex.com/credit-removal". ***/-->
                     Designed By <a class="border-bottom text-white" href="https://htmlcodex.com">HTML Codex</a>
                 </div>
             </div>
@@ -676,16 +670,14 @@
     </div>
     <!-- Copyright End -->
 
-
     <!-- Back to Top -->
     <a href="#" class="btn btn-secondary btn-lg-square rounded-circle back-to-top"><i class="fa fa-arrow-up"></i></a>
-
 
     <!-- JavaScript Libraries -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="lib/wow/wow.min.js"></script>
-    <script src="lib/easing/easing.min.js"></script>
+    <script ```javascript src="lib/easing/easing.min.js"></script>
     <script src="lib/waypoints/waypoints.min.js"></script>
     <script src="lib/counterup/counterup.min.js"></script>
     <script src="lib/owlcarousel/owl.carousel.min.js"></script>
