@@ -1,5 +1,5 @@
 <?php
-include 'db/db.php';
+include 'db/temp.php';
 ?>
 
 <!DOCTYPE html>
