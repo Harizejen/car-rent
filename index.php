@@ -74,7 +74,7 @@ include 'db/db.php';
         <div class="container">
             <nav class="navbar navbar-expand-lg navbar-light">
                 <a href="" class="navbar-brand p-0">
-                    <h1 class="display-6 text-primary"><i class="fas fa-car-alt me-3"></i></i>Cental</h1>
+                    <h1 class="display-6 text-primary"><i class="fas fa-car-alt me-3"></i>Cental</h1>
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
                     <span class="fa fa-bars"></span>
@@ -98,7 +98,7 @@ include 'db/db.php';
                         </div>
                         <a href="contact.php" class="nav-item nav-link">Contact</a>
                     </div>
-                    <a href="#" class="btn btn-primary rounded-pill py-2 px-4">Get Started</a>
+                    <a href="CRUD.php" class="btn btn-primary rounded-pill py-2 px-4">Manage Bookings</a>
                 </div>
             </nav>
         </div>
@@ -358,7 +358,7 @@ include 'db/db.php';
         <div class="container pb-5">
             <div class="text-center mx-auto pb-5 wow fadeInUp" data-wow-delay="0.1s" style="max-width: 800px;">
                 <h1 class="display-5 text-capitalize mb-3">Vehicle <span class="text-primary">Categories</span></h1>
-                <p class="mb-0">Various car types to choose from!</ ```php </p>
+                <p class="mb-0">Various car types to choose from!</p>
             </div>
             <div class="categories-carousel owl-carousel wow fadeInUp" data-wow-delay="0.1s">
                 <div class="categories-item p-4">
@@ -437,8 +437,7 @@ include 'db/db.php';
                                     <i class="fa fa-gas-pump text-dark"></i> <span class="text-body ms-1">Petrol</span>
                                 </div>
                                 <div class="col-4 border-end border-white">
-                                    <i class="fa fa-car text-dark ```php
-                                    "></i> <span class="text-body ms-1">2015</span>
+                                    <i class="fa fa-car text-dark"></i> <span class="text-body ms-1">2015</span>
                                 </div>
                                 <div class="col-4 border-end border-white">
                                     <i class="fa fa-cogs text-dark"></i> <span class="text-body ms-1">AUTO</span>
@@ -677,64 +676,10 @@ include 'db/db.php';
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="lib/wow/wow.min.js"></script>
-    <script ```javascript src="lib/easing/easing.min.js"></script>
+    <script src="lib/easing/easing.min.js"></script>
     <script src="lib/waypoints/waypoints.min.js"></script>
     <script src="lib/counterup/counterup.min.js"></script>
     <script src="lib/owlcarousel/owl.carousel.min.js"></script>
-    <script>
-        // Get the modal
-        var modal = document.getElementById("loginModal");
-
-        // Get the button that opens the modal
-        var btn = document.getElementById("bookNowButton");
-
-        // Get the <span> element that closes the modal
-        var span = document.getElementsByClassName("close")[0];
-
-        // Add event listener to the "Book Now" button
-        bookNowButton.onclick = function (event) {
-            // Get the booking form
-            var bookingForm = document.getElementById("bookingForm");
-
-            // Check if the form is valid
-            if (bookingForm.checkValidity()) {
-                modal.style.display = "block"; // Open the modal if valid
-            } else {
-                // If the form is not valid, show an alert or message
-                alert("Please fill out all required fields before proceeding.");
-            }
-        }
-
-        // When the user clicks on <span> (x), close the modal
-        span.onclick = function () {
-            modal.style.display = "none";
-        }
-
-        // When the user clicks anywhere outside of the modal, close it
-        window.onclick = function (event) {
-            if (event.target == modal) {
-                modal.style.display = "none";
-            }
-        }
-
-        // Handle form submission
-        document.getElementById("loginForm").onsubmit = function (event) {
-            event.preventDefault(); // Prevent the default form submission
-            var clientName = document.getElementById("clientName").value;
-            var clientPNum = document.getElementById("clientPNum").value;
-            var clientType = document.getElementById("clientType").value;
-
-            // Here you can handle the data, e.g., send it to your server
-            console.log("Client Name:", clientName);
-            console.log("Phone Number:", clientPNum);
-            console.log("Client Type:", clientType);
-
-            // Close the modal after submission
-            modal.style.display = "none";
-        }
-    </script>
-
-    <!-- Template Javascript -->
     <script src="js/main.js"></script>
 </body>
 
