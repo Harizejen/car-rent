@@ -1,5 +1,104 @@
 <?php
-include 'db/temp.php';
+include 'db/db.php';
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+session_start();
+
+// Fetch vehicles from database
+$vehicleQuery = "SELECT v.VEHICLE_ID, v.VEHICLE_NAME, h.LOCATION_NAME 
+                FROM CARRENTAL.VEHICLE v
+                JOIN CARRENTAL.HUB h ON v.LOCATION_ID = h.LOCATION_ID
+                WHERE v.STATUS_ID = (SELECT STATUS_ID FROM CARRENTAL.STATUS WHERE STATUS_TYPE = 'Available')";
+$stmt = oci_parse($conn, $vehicleQuery);
+oci_execute($stmt);
+$vehicles = [];
+while ($row = oci_fetch_assoc($stmt)) {
+    $vehicles[] = $row;
+}
+
+// Fetch hubs from database
+$hubQuery = "SELECT LOCATION_ID, LOCATION_NAME FROM CARRENTAL.HUB";
+$stmt = oci_parse($conn, $hubQuery);
+oci_execute($stmt);
+$hubs = [];
+while ($row = oci_fetch_assoc($stmt)) {
+    $hubs[] = $row;
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    if(isset($_POST['booking'])) {
+        // Client registration
+        $clientQuery = "INSERT INTO CARRENTAL.CLIENTS (CLIENT_NAME, CLIENT_PNUM, CLIENT_TYPE) 
+                       VALUES (:name, :pnum, :type)
+                       RETURNING CLIENT_ID INTO :client_id";
+        
+        $stmt = oci_parse($conn, $clientQuery);
+        oci_bind_by_name($stmt, ":name", $_POST['client_name']);
+        oci_bind_by_name($stmt, ":pnum", $_POST['client_pnum']);
+        oci_bind_by_name($stmt, ":type", $_POST['client_type']);
+        oci_bind_by_name($stmt, ":client_id", $client_id, 32);
+        oci_execute($stmt);
+
+        // Calculate duration
+        $pickup = new DateTime($_POST['booking_date']);
+        $dropoff = new DateTime($_POST['return_date']);
+        $duration = $pickup->diff($dropoff)->days;
+
+        // Create booking
+        $bookingQuery = "INSERT INTO CARRENTAL.BOOKINGS (
+            BOOKING_DATE, 
+            PICKUP_LOCATION_ID, 
+            DROPOFF_LOCATION_ID, 
+            CLIENT_ID, 
+            VEHICLE_ID, 
+            STATUS_ID, 
+            DURATION
+        ) VALUES (
+            TO_DATE(:booking_date, 'YYYY-MM-DD HH24:MI'), 
+            :pickup_loc, 
+            :dropoff_loc, 
+            :client_id, 
+            :vehicle_id, 
+            1, 
+            :duration
+        )";
+
+        $booking_date = $_POST['booking_date'] . ' ' . $_POST['pickup_time'];
+        $stmt = oci_parse($conn, $bookingQuery);
+        oci_bind_by_name($stmt, ":booking_date", $booking_date);
+        oci_bind_by_name($stmt, ":pickup_loc", $_POST['pickup_location']);
+        oci_bind_by_name($stmt, ":dropoff_loc", $_POST['dropoff_location']);
+        oci_bind_by_name($stmt, ":client_id", $client_id);
+        oci_bind_by_name($stmt, ":vehicle_id", $_POST['vehicle_id']);
+        oci_bind_by_name($stmt, ":duration", $duration);
+        oci_execute($stmt);
+
+        // Create payment
+        $paymentQuery = "INSERT INTO CARRENTAL.PAYMENTS (
+            PAYMENT_METHOD, 
+            PAYMENT_DATE, 
+            AMOUNT, 
+            BOOKING_ID, 
+            STATUS_ID
+        ) VALUES (
+            'Online', 
+            SYSDATE, 
+            :amount, 
+            :booking_id, 
+            1
+        )";
+        
+        $amount = $duration * 100;
+        $stmt = oci_parse($conn, $paymentQuery);
+        oci_bind_by_name($stmt, ":amount", $amount);
+        oci_bind_by_name($stmt, ":booking_id", $booking_id);
+        oci_execute($stmt);
+
+        $_SESSION['booking_id'] = $booking_id;
+        header("Location: confirmation.php");
+        exit;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -115,73 +214,96 @@ include 'db/temp.php';
                         <div class="row g-5">
                             <div class="col-lg-6 fadeInLeft animated" data-animation="fadeInLeft" data-delay="1s"
                                 style="animation-delay: 1s;">
-                                <div class="bg-secondary rounded p-5">
-                                    <form id="bookingForm" action="/controller/addBooking.php" method="POST">
-                                        <div class="row g-3">
-                                            <div class="col-12">
-                                                <select class="form-select" name="vehicle_id"
-                                                    aria-label="Default select example" required>
-                                                    <option selected>Select Your Car type</option>
-                                                    <option value="1">VW Golf VII</option>
-                                                    <option value="2">Audi A1 S-Line</option>
-                                                    <option value="3">Toyota Camry</option>
-                                                    <option value="4">BMW 320 ModernLine</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-12">
-                                                <div class="input-group">
-                                                    <div
-                                                        class="d-flex align-items-center bg-light text-body rounded-start p-2">
-                                                        <span class="fas fa-map-marker-alt"></span> <span
-                                                            class="ms-1">Pick Up</span>
-                                                    </div>
-                                                    <input class="form-control" type="text" name="pickup_location"
-                                                        placeholder="Enter a City or Airport"
-                                                        aria-label="Enter a City or Airport" required>
+                                <div class="col-lg-6 fadeInLeft animated" data-animation="fadeInLeft" data-delay="1s"
+                                    style="animation-delay: 1s;">
+                                    <div class="bg-secondary rounded p-5">
+                                        <form id="bookingForm" action="index.php" method="POST">
+                                            <div class="row g-3">
+                                                <!-- Client Registration Fields -->
+                                                <div class="col-12">
+                                                    <input type="text" class="form-control" name="client_name"
+                                                        placeholder="Full Name" required>
                                                 </div>
-                                            </div>
-                                            <div class="col-12">
-                                                <a href="#" class="text-start text-white d-block mb-2">Need a different
-                                                    drop-off location?</a>
-                                                <div class="input-group">
-                                                    <div
-                                                        class="d-flex align-items-center bg-light text-body rounded-start p-2">
-                                                        <span class="fas fa-map-marker-alt"></span><span
-                                                            class="ms-1">Drop off</span>
-                                                    </div>
-                                                    <input class="form-control" type="text" name="dropoff_location"
-                                                        placeholder="Enter a City or Airport"
-                                                        aria-label="Enter a City or Airport" required>
+                                                <div class="col-12">
+                                                    <input type="tel" class="form-control" name="client_pnum"
+                                                        placeholder="Phone Number" required>
                                                 </div>
-                                            </div>
-                                            <div class="col-12">
-                                                <div class="input-group">
-                                                    <div
-                                                        class="d-flex align-items-center bg-light text-body rounded-start p-2">
-                                                        <span class="fas fa-calendar-alt"></span><span class="ms-1">Pick
-                                                            Up</span>
-                                                    </div>
-                                                    <input class="form-control" type="date" name="booking_date"
-                                                        required>
-                                                    <select class="form-select ms-3" name="pickup_time" required
-                                                        aria-label="Default select example">
-                                                        <option selected>12:00AM</option>
-                                                        <option value="1">1:00AM</option>
-                                                        <option value="2">2:00AM</option>
-                                                        <option value="3">3:00AM</option>
-                                                        <option value="4">4:00AM</option>
-                                                        <option value="5">5:00AM</option>
-                                                        <option value="6">6:00AM</option>
-                                                        <option value="7">7:00AM</option>
+                                                <div class="col-12">
+                                                    <select class="form-select" name="client_type" required>
+                                                        <option value="individual">Individual</option>
+                                                        <option value="business">Business</option>
+                                                        <option value="family">Family</option>
                                                     </select>
                                                 </div>
+
+                                                <!-- Dynamic Vehicle Selection -->
+                                                <div class="col-12">
+                                                    <select class="form-select" name="vehicle_id" required>
+                                                        <option value="">Select Vehicle</option>
+                                                        <?php while ($vehicle = $vehicles->fetch(PDO::FETCH_ASSOC)): ?>
+                                                            <option value="<?= $vehicle['VEHICLE_ID'] ?>">
+                                                                <?= $vehicle['VEHICLE_NAME'] ?>
+                                                                (<?= $vehicle['LOCATION_NAME'] ?>)
+                                                            </option>
+                                                        <?php endwhile; ?>
+                                                    </select>
+                                                </div>
+
+                                                <!-- Dynamic Location Selection -->
+                                                <div class="col-12">
+                                                    <select class="form-select" name="pickup_location" required>
+                                                        <option value="">Pickup Location</option>
+                                                        <?php while ($hub = $hubs->fetch(PDO::FETCH_ASSOC)): ?>
+                                                            <option value="<?= $hub['LOCATION_ID'] ?>">
+                                                                <?= $hub['LOCATION_NAME'] ?>
+                                                            </option>
+                                                        <?php endwhile; ?>
+                                                    </select>
+                                                </div>
+
+                                                <div class="col-12">
+                                                    <select class="form-select" name="dropoff_location" required>
+                                                        <option value="">Dropoff Location</option>
+                                                        <?php
+                                                        $hubs->execute(); // Reset pointer
+                                                        while ($hub = $hubs->fetch(PDO::FETCH_ASSOC)): ?>
+                                                            <option value="<?= $hub['LOCATION_ID'] ?>">
+                                                                <?= $hub['LOCATION_NAME'] ?>
+                                                            </option>
+                                                        <?php endwhile; ?>
+                                                    </select>
+                                                </div>
+
+                                                <!-- Date/Time Selection -->
+                                                <div class="col-12">
+                                                    <div class="input-group">
+                                                        <div
+                                                            class="d-flex align-items-center bg-light text-body rounded-start p-2">
+                                                            <span class="fas fa-calendar-alt"></span><span
+                                                                class="ms-1">Pickup Date</span>
+                                                        </div>
+                                                        <input type="date" class="form-control" name="booking_date"
+                                                            required>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="input-group">
+                                                        <div
+                                                            class="d-flex align-items-center bg-light text-body rounded-start p-2">
+                                                            <span class="fas fa-calendar-alt"></span><span
+                                                                class="ms-1">Return Date</span>
+                                                        </div>
+                                                        <input type="date" class="form-control" name="return_date"
+                                                            required>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <button type="submit" name="booking"
+                                                        class="btn btn-light w-100 py-2">Book Now</button>
+                                                </div>
                                             </div>
-                                            <div class="col-12">
-                                                <button type="submit" id="bookNowButton"
-                                                    class="btn btn-light w-100 py-2">Book Now</button>
-                                            </div>
-                                        </div>
-                                    </form>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-lg-6 d-none d-lg-flex fadeInRight animated" data-animation="fadeInRight"

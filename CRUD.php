@@ -76,12 +76,12 @@ function deleteBooking($bookingId) {
         $e = oci_error($stmt);
         echo "Error deleting booking: " . htmlentities($e['message']);
     }
+
 }
 
 // Example usage
-// Uncomment the following lines to test the functions
-createBooking('2023-10-01', 1, 2, 1, 1, 1, 3.5);
-readBookings();
-updateBooking(1, '2023-10-02', 1, 2, 1, 1, 1, 4.0);
-deleteBooking(1);
+// createBooking('2023-10-01', 1, 2, 1, 1, 1, 3); // Create a new booking
+// readBookings(); // Read and display all bookings
+// updateBooking(1, '2023-10-02', 1, 2, 1, 1, 1, 4); // Update the booking with ID 1
+// deleteBooking(1); // Delete the booking with ID 1
 ?>
