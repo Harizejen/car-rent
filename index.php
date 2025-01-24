@@ -4,34 +4,44 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
 
-// Fetch vehicles from database
-$vehicleQuery = "SELECT v.VEHICLE_ID, v.VEHICLE_NAME, h.LOCATION_NAME 
+// Fetch available vehicles using explicit JOIN with status check
+$vehicleQuery = "SELECT v.VEHICLE_ID, v.VEHICLE_NAME 
                 FROM CARRENTAL.VEHICLE v
-                JOIN CARRENTAL.HUB h ON v.LOCATION_ID = h.LOCATION_ID
-                WHERE v.STATUS_ID = (SELECT STATUS_ID FROM CARRENTAL.STATUS WHERE STATUS_TYPE = 'Available')";
+                JOIN CARRENTAL.STATUS s ON v.STATUS_ID = s.STATUS_ID
+                WHERE s.STATUS_TYPE = 'Available'";
+
 $stmt = oci_parse($conn, $vehicleQuery);
-oci_execute($stmt);
+if (!$stmt) {
+    $e = oci_error($conn);
+    trigger_error(htmlentities($e['message'], ENT_QUOTES), E_USER_ERROR);
+}
+
+$result = oci_execute($stmt);
+if (!$result) {
+    $e = oci_error($stmt);
+    trigger_error(htmlentities($e['message'], ENT_QUOTES), E_USER_ERROR);
+}
+
 $vehicles = [];
 while ($row = oci_fetch_assoc($stmt)) {
     $vehicles[] = $row;
 }
 
-// Fetch hubs from database
-$hubQuery = "SELECT LOCATION_ID, LOCATION_NAME FROM CARRENTAL.HUB";
-$stmt = oci_parse($conn, $hubQuery);
-oci_execute($stmt);
-$hubs = [];
-while ($row = oci_fetch_assoc($stmt)) {
-    $hubs[] = $row;
+// Debugging output
+if (empty($vehicles)) {
+    echo "No available vehicles found.";
+} else {
+    echo "Available vehicles retrieved successfully.";
+    print_r($vehicles); // Print the retrieved vehicles for debugging
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if(isset($_POST['booking'])) {
+    if (isset($_POST['booking'])) {
         // Client registration
         $clientQuery = "INSERT INTO CARRENTAL.CLIENTS (CLIENT_NAME, CLIENT_PNUM, CLIENT_TYPE) 
                        VALUES (:name, :pnum, :type)
                        RETURNING CLIENT_ID INTO :client_id";
-        
+
         $stmt = oci_parse($conn, $clientQuery);
         oci_bind_by_name($stmt, ":name", $_POST['client_name']);
         oci_bind_by_name($stmt, ":pnum", $_POST['client_pnum']);
@@ -39,12 +49,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         oci_bind_by_name($stmt, ":client_id", $client_id, 32);
         oci_execute($stmt);
 
+        // Get vehicle's location
+        $vehicle_id = $_POST['vehicle_id'];
+        $locationQuery = "SELECT LOCATION_ID FROM CARRENTAL.VEHICLE WHERE VEHICLE_ID = :vehicle_id";
+        $stmt = oci_parse($conn, $locationQuery);
+        oci_bind_by_name($stmt, ":vehicle_id", $vehicle_id);
+        oci_execute($stmt);
+        $vehicleLocation = oci_fetch_assoc($stmt);
+
         // Calculate duration
         $pickup = new DateTime($_POST['booking_date']);
         $dropoff = new DateTime($_POST['return_date']);
         $duration = $pickup->diff($dropoff)->days;
 
-        // Create booking
+        // Create booking (using vehicle's location for both pickup and dropoff)
         $bookingQuery = "INSERT INTO CARRENTAL.BOOKINGS (
             BOOKING_DATE, 
             PICKUP_LOCATION_ID, 
@@ -66,13 +84,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $booking_date = $_POST['booking_date'] . ' ' . $_POST['pickup_time'];
         $stmt = oci_parse($conn, $bookingQuery);
         oci_bind_by_name($stmt, ":booking_date", $booking_date);
-        oci_bind_by_name($stmt, ":pickup_loc", $_POST['pickup_location']);
-        oci_bind_by_name($stmt, ":dropoff_loc", $_POST['dropoff_location']);
+        oci_bind_by_name($stmt, ":pickup_loc", $vehicleLocation['LOCATION_ID']);
+        oci_bind_by_name($stmt, ":dropoff_loc", $vehicleLocation['LOCATION_ID']);
         oci_bind_by_name($stmt, ":client_id", $client_id);
-        oci_bind_by_name($stmt, ":vehicle_id", $_POST['vehicle_id']);
+        oci_bind_by_name($stmt, ":vehicle_id", $vehicle_id);
         oci_bind_by_name($stmt, ":duration", $duration);
         oci_execute($stmt);
 
+        // Rest of the payment processing remains the same...
         // Create payment
         $paymentQuery = "INSERT INTO CARRENTAL.PAYMENTS (
             PAYMENT_METHOD, 
@@ -87,7 +106,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             :booking_id, 
             1
         )";
-        
+
         $amount = $duration * 100;
         $stmt = oci_parse($conn, $paymentQuery);
         oci_bind_by_name($stmt, ":amount", $amount);
@@ -236,41 +255,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                                     </select>
                                                 </div>
 
-                                                <!-- Dynamic Vehicle Selection -->
+                                                <!-- Vehicle Selection -->
                                                 <div class="col-12">
                                                     <select class="form-select" name="vehicle_id" required>
-                                                        <option value="">Select Vehicle</option>
-                                                        <?php while ($vehicle = $vehicles->fetch(PDO::FETCH_ASSOC)): ?>
-                                                            <option value="<?= $vehicle['VEHICLE_ID'] ?>">
-                                                                <?= $vehicle['VEHICLE_NAME'] ?>
-                                                                (<?= $vehicle['LOCATION_NAME'] ?>)
-                                                            </option>
-                                                        <?php endwhile; ?>
-                                                    </select>
-                                                </div>
-
-                                                <!-- Dynamic Location Selection -->
-                                                <div class="col-12">
-                                                    <select class="form-select" name="pickup_location" required>
-                                                        <option value="">Pickup Location</option>
-                                                        <?php while ($hub = $hubs->fetch(PDO::FETCH_ASSOC)): ?>
-                                                            <option value="<?= $hub['LOCATION_ID'] ?>">
-                                                                <?= $hub['LOCATION_NAME'] ?>
-                                                            </option>
-                                                        <?php endwhile; ?>
-                                                    </select>
-                                                </div>
-
-                                                <div class="col-12">
-                                                    <select class="form-select" name="dropoff_location" required>
-                                                        <option value="">Dropoff Location</option>
-                                                        <?php
-                                                        $hubs->execute(); // Reset pointer
-                                                        while ($hub = $hubs->fetch(PDO::FETCH_ASSOC)): ?>
-                                                            <option value="<?= $hub['LOCATION_ID'] ?>">
-                                                                <?= $hub['LOCATION_NAME'] ?>
-                                                            </option>
-                                                        <?php endwhile; ?>
+                                                        <?php if (empty($vehicles)): ?>
+                                                            <option value="" disabled selected>No available vehicles at this
+                                                                time</option>
+                                                        <?php else: ?>
+                                                            <option value="">Select Vehicle</option>
+                                                            <?php foreach ($vehicles as $vehicle): ?>
+                                                                <option value="<?= htmlspecialchars($vehicle['VEHICLE_ID']) ?>">
+                                                                    <?= htmlspecialchars($vehicle['VEHICLE_NAME']) ?> -
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        <?php endif; ?>
                                                     </select>
                                                 </div>
 
