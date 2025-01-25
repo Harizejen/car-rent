@@ -4,34 +4,137 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
 
-// Fetch available vehicles using explicit JOIN with status check
-$vehicleQuery = "SELECT v.VEHICLE_ID, v.VEHICLE_NAME 
-                FROM CARRENTAL.VEHICLE v
-                JOIN CARRENTAL.STATUS s ON v.STATUS_ID = s.STATUS_ID
-                WHERE s.STATUS_TYPE = 'Available'";
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login'])) {
+    try {
+        if (empty($_POST['email']) || empty($_POST['password'])) {
+            throw new Exception("Email and password are required");
+        }
 
-$stmt = oci_parse($conn, $vehicleQuery);
-if (!$stmt) {
-    $e = oci_error($conn);
-    trigger_error(htmlentities($e['message'], ENT_QUOTES), E_USER_ERROR);
+        $query = "SELECT CLIENT_ID, CLIENT_NAME, PASSWORD 
+                FROM CARRENTAL.CLIENTS 
+                WHERE EMAIL = :email";
+        
+        $stmt = oci_parse($conn, $query);
+        oci_bind_by_name($stmt, ":email", $_POST['email']);
+        oci_execute($stmt);
+
+        if ($user = oci_fetch_assoc($stmt)) {
+            if (password_verify($_POST['password'], $user['PASSWORD'])) {
+                $_SESSION['client_id'] = $user['CLIENT_ID'];
+                $_SESSION['client_name'] = $user['CLIENT_NAME'];
+                header("Location: index.php");
+                exit;
+            } else {
+                throw new Exception("Invalid credentials");
+            }
+        } else {
+            throw new Exception("User  not found");
+        }
+
+    } catch (Exception $e) {
+        $_SESSION['error'] = $e->getMessage();
+        header("Location: index.php");
+        exit;
+    }
 }
 
-$result = oci_execute($stmt);
-if (!$result) {
-    $e = oci_error($stmt);
-    trigger_error(htmlentities($e['message'], ENT_QUOTES), E_USER_ERROR);
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['signup'])) {
+    try {
+        // Validate required fields
+        $required = ['name', 'pnum', 'type', 'email', 'password'];
+        foreach ($required as $field) {
+            if (empty($_POST[$field])) {
+                throw new Exception("All fields are required");
+            }
+        }
+
+        // Hash password
+        $hashed_password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+
+        // Prepare insert statement
+        $query = "INSERT INTO CARRENTAL.CLIENTS 
+                (CLIENT_NAME, CLIENT_PNUM, CLIENT_TYPE, EMAIL, PASSWORD) 
+                VALUES (:name, :pnum, :type, :email, :password)
+                RETURNING CLIENT_ID INTO :client_id";
+
+        $stmt = oci_parse($conn, $query);
+        
+        // Bind all parameters
+        oci_bind_by_name($stmt, ":name", $_POST['name']);
+        oci_bind_by_name($stmt, ":pnum", $_POST['pnum']);
+        oci_bind_by_name($stmt, ":type", $_POST['type']);
+        oci_bind_by_name($stmt, ":email", $_POST['email']);
+        oci_bind_by_name($stmt, ":password", $hashed_password);
+        oci_bind_by_name($stmt, ":client_id", $client_id, 32);
+
+        if (!oci_execute($stmt)) {
+            throw new Exception("Registration failed");
+        }
+
+        // Set session variables
+        $_SESSION['client_id'] = $client_id;
+        $_SESSION['client_name'] = $_POST['name'];
+        
+        header("Location: index.php");
+        exit;
+
+    } catch (Exception $e) {
+        $_SESSION['error'] = $e->getMessage();
+        header("Location: index.php");
+        exit;
+    }
 }
 
-$vehicles = [];
-while ($row = oci_fetch_assoc($stmt)) {
-    $vehicles[] = $row;
+// Enhanced error handling
+set_exception_handler(function ($e) {
+    error_log("Critical Error: " . $e->getMessage());
+    die("A system error occurred. Please try again later.");
+});
+
+// Vehicle query
+$vehicleQuery = "SELECT veh.VEHICLE_ID, veh.VEHICLE_NAME, veh.RATE_PER_DAY 
+                FROM CARRENTAL.VEHICLE veh
+                JOIN CARRENTAL.STATUS sts ON veh.STATUS_ID = sts.STATUS_ID
+                WHERE sts.STATUS_TYPE = 'Available'";
+
+try {
+    $stmt = oci_parse($conn, $vehicleQuery);
+    if (!$stmt) {
+        throw new Exception("Database query preparation failed");
+    }
+    
+    if (!oci_execute($stmt)) {
+        throw new Exception("Database query execution failed");
+    }
+
+    $vehicles = [];
+    while ($row = oci_fetch_assoc($stmt)) {
+        $vehicles[] = $row;
+    }
+} catch (Exception $e) {
+    error_log("Database Error: " . $e->getMessage() . " - Query: " . $vehicleQuery);
+    die("A database error occurred. Please try again later.");
 }
 
-// Debugging output
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['booking'])) {
+    try {
+        oci_begin($conn); // Start transaction
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if (isset($_POST['booking'])) {
-        // Client registration
+        // Client registration with validation
+        $requiredFields = [
+            'client_name',
+            'client_pnum',
+            'client_type',
+            'vehicle_id',
+            'booking_date',
+            'return_date'
+        ];
+        foreach ($requiredFields as $field) {
+            if (empty($_POST[$field]))
+                throw new Exception("Missing required field: $field");
+        }
+
+        // Insert client
         $clientQuery = "INSERT INTO CARRENTAL.CLIENTS (CLIENT_NAME, CLIENT_PNUM, CLIENT_TYPE) 
                        VALUES (:name, :pnum, :type)
                        RETURNING CLIENT_ID INTO :client_id";
@@ -41,76 +144,86 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         oci_bind_by_name($stmt, ":pnum", $_POST['client_pnum']);
         oci_bind_by_name($stmt, ":type", $_POST['client_type']);
         oci_bind_by_name($stmt, ":client_id", $client_id, 32);
-        oci_execute($stmt);
+        oci_execute($stmt) or handleOracleError($stmt);
 
-        // Get vehicle's location
+        // Get vehicle details
         $vehicle_id = $_POST['vehicle_id'];
-        $locationQuery = "SELECT LOCATION_ID FROM CARRENTAL.VEHICLE WHERE VEHICLE_ID = :vehicle_id";
-        $stmt = oci_parse($conn, $locationQuery);
-        oci_bind_by_name($stmt, ":vehicle_id", $vehicle_id);
-        oci_execute($stmt);
-        $vehicleLocation = oci_fetch_assoc($stmt);
+        $vehicleQuery = "SELECT LOCATION_ID, RATE_PER_DAY 
+                        FROM CARRENTAL.VEHICLE 
+                        WHERE VEHICLE_ID = :vehicle_id
+                        AND STATUS_ID = (SELECT STATUS_ID FROM CARRENTAL.STATUS WHERE STATUS_TYPE = 'Available')";
 
-        // Calculate duration
+        $stmt = oci_parse($conn, $vehicleQuery);
+        oci_bind_by_name($stmt, ":vehicle_id", $vehicle_id);
+        oci_execute($stmt) or handleOracleError($stmt);
+        $vehicle = oci_fetch_assoc($stmt);
+
+        if (!$vehicle)
+            throw new Exception("Selected vehicle is no longer available");
+
+        // Validate dates
         $pickup = new DateTime($_POST['booking_date']);
         $dropoff = new DateTime($_POST['return_date']);
+        if ($pickup >= $dropoff)
+            throw new Exception("Return date must be after pickup date");
         $duration = $pickup->diff($dropoff)->days;
 
-        // Create booking (using vehicle's location for both pickup and dropoff)
+        // Insert booking
         $bookingQuery = "INSERT INTO CARRENTAL.BOOKINGS (
-            BOOKING_DATE, 
-            PICKUP_LOCATION_ID, 
-            DROPOFF_LOCATION_ID, 
-            CLIENT_ID, 
-            VEHICLE_ID, 
-            STATUS_ID, 
-            DURATION
+            BOOKING_DATE, RETURN_DATE,
+            PICKUP_LOCATION_ID, DROPOFF_LOCATION_ID, 
+            CLIENT_ID, VEHICLE_ID, STATUS_ID, DURATION
         ) VALUES (
-            TO_DATE(:booking_date, 'YYYY-MM-DD HH24:MI'), 
-            :pickup_loc, 
-            :dropoff_loc, 
-            :client_id, 
-            :vehicle_id, 
-            1, 
+            TO_DATE(:booking_date, 'YYYY-MM-DD'), 
+            TO_DATE(:return_date, 'YYYY-MM-DD'),
+            :pickup_loc, :dropoff_loc, 
+            :client_id, :vehicle_id, 
+            (SELECT STATUS_ID FROM CARRENTAL.STATUS WHERE STATUS_TYPE = 'Booked'), 
             :duration
-        )";
+        ) RETURNING BOOKING_ID INTO :booking_id";
 
-        $booking_date = $_POST['booking_date'] . ' ' . $_POST['pickup_time'];
         $stmt = oci_parse($conn, $bookingQuery);
-        oci_bind_by_name($stmt, ":booking_date", $booking_date);
-        oci_bind_by_name($stmt, ":pickup_loc", $vehicleLocation['LOCATION_ID']);
-        oci_bind_by_name($stmt, ":dropoff_loc", $vehicleLocation['LOCATION_ID']);
+        oci_bind_by_name($stmt, ":booking_date", $_POST['booking_date']);
+        oci_bind_by_name($stmt, ":return_date", $_POST['return_date']);
+        oci_bind_by_name($stmt, ":pickup_loc", $vehicle['LOCATION_ID']);
+        oci_bind_by_name($stmt, ":dropoff_loc", $vehicle['LOCATION_ID']);
         oci_bind_by_name($stmt, ":client_id", $client_id);
         oci_bind_by_name($stmt, ":vehicle_id", $vehicle_id);
         oci_bind_by_name($stmt, ":duration", $duration);
-        oci_execute($stmt);
+        oci_bind_by_name($stmt, ":booking_id", $booking_id, 32);
+        oci_execute($stmt) or handleOracleError($stmt);
 
-        // Rest of the payment processing remains the same...
-        // Create payment
+        // Insert payment
+        $amount = $duration * $vehicle['RATE_PER_DAY'];
         $paymentQuery = "INSERT INTO CARRENTAL.PAYMENTS (
-            PAYMENT_METHOD, 
-            PAYMENT_DATE, 
-            AMOUNT, 
-            BOOKING_ID, 
-            STATUS_ID
+            PAYMENT_METHOD, PAYMENT_DATE, AMOUNT, BOOKING_ID, STATUS_ID
         ) VALUES (
-            'Online', 
-            SYSDATE, 
-            :amount, 
-            :booking_id, 
-            1
+            'Online', SYSDATE, :amount, :booking_id, 
+            (SELECT STATUS_ID FROM CARRENTAL.STATUS WHERE STATUS_TYPE = 'Completed')
         )";
 
-        $amount = $duration * 100;
         $stmt = oci_parse($conn, $paymentQuery);
         oci_bind_by_name($stmt, ":amount", $amount);
         oci_bind_by_name($stmt, ":booking_id", $booking_id);
-        oci_execute($stmt);
+        oci_execute($stmt) or handleOracleError($stmt);
 
+        oci_commit($conn);
         $_SESSION['booking_id'] = $booking_id;
         header("Location: confirmation.php");
         exit;
+
+    } catch (Exception $e) {
+        oci_rollback($conn);
+        $_SESSION['error'] = $e->getMessage();
+        header("Location: index.php");
+        exit;
     }
+}
+
+function handleOracleError($resource) {
+    $error = oci_error($resource);
+    error_log("Oracle Error: " . $error['message']);
+    throw new Exception("Database operation failed");
 }
 ?>
 
@@ -225,17 +338,89 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="carousel-caption">
                     <div class="container py-4">
                         <div class="row g-5">
-                            <div class="col-lg-6 fadeInLeft animated" data-animation="fadeInLeft" data-delay="1s"
-                                style="animation-delay: 1s;">
-                                <div class="col-lg-6 fadeInLeft animated" data-animation="fadeInLeft" data-delay="1s"
-                                    style="animation-delay: 1s;">
-                                    <div class="bg-secondary rounded p-5">
-                                        <form id="bookingForm" action="index.php" method="POST">
+                            <div class="col-lg-6 fadeInLeft animated">
+                                <div class="bg-secondary rounded p-5 shadow-lg">
+                                    <?php if (isset($_SESSION['error'])): ?>
+                                        <div class="alert alert-danger"><?= htmlspecialchars($_SESSION['error']) ?></div>
+                                        <?php unset($_SESSION['error']); ?>
+                                    <?php endif; ?>
+
+                                    <?php if (!isset($_SESSION['client_id'])): ?>
+                                        <!-- Login/Signup Tabs -->
+                                        <ul class="nav nav-tabs mb-4" id="authTabs">
+                                            <li class="nav-item">
+                                                <a class="nav-link active" data-bs-toggle="tab" href="#login">Login</a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class="nav-link" data-bs-toggle="tab" href="#signup">Sign Up</a>
+                                            </li>
+                                        </ul>
+
+                                        <div class="tab-content">
+                                            <!-- Login Form -->
+                                            <div class="tab-pane fade show active" id="login">
+                                                <form action="index.php" method="POST">
+                                                    <div class="mb-3">
+                                                        <label class="form-label text-white">Email</label>
+                                                        <input type="email" class="form-control" name="email" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label text-white">Password</label>
+                                                        <input type="password" class="form-control" name="password" required>
+                                                    </div>
+                                                    <button type="submit" name="login" class="btn btn-light w-100">Login</button>
+                                                </form>
+                                            </div>
+
+                                            <!-- Signup Form -->
+                                            <div class="tab-pane fade" id="signup">
+                                                <form action="index.php" method="POST">
+                                                    <div class="mb-3">
+                                                        <label class="form-label text-white">Full Name</label>
+                                                        <input type="text" class="form-control" name="name" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label text-white">Phone Number</label>
+                                                        <input type="tel" class="form-control" name="pnum" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label text-white">Client Type</label>
+                                                        <select class="form-select" name="type" required>
+                                                            <option value="individual">Individual</option>
+                                                            <option value="business">Business</option>
+                                                            <option value="family">Family</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label text-white">Email</label>
+                                                        <input type="email" class="form-control" name="email" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label text-white">Password</label>
+                                                        <input type="password" class="form-control" name="password" required>
+                                                    </div>
+                                                    <button type="submit" name="signup" class="btn btn-light w-100">Sign Up</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    <?php else: ?>
+                                        <!-- Booking Form for Logged-in Users -->
+                                        <div class="d-flex justify-content-between align-items-center mb-4">
+                                            <?php if (isset($_SESSION['client_name'])): ?>
+                                                <h5 class="text-white">Welcome, <?= htmlspecialchars($_SESSION['client_name']) ?></h5>
+                                            <?php endif; ?>
+                                            <a href="logout.php" class="btn btn-sm btn-outline-light">Logout</a>
+                                        </div>
+
+                                        <form id="bookingForm" action="index.php" method="POST" novalidate>
                                             <div class="row g-3">
                                                 <!-- Client Registration Fields -->
                                                 <div class="col-12">
+                                                    <label class="form-label text-white">Full Name</label>
                                                     <input type="text" class="form-control" name="client_name"
-                                                        placeholder="Full Name" required>
+                                                        placeholder="Full Name"
+                                                        value="<?= htmlspecialchars($_POST['client_name'] ?? '') ?>"
+                                                        required>
                                                 </div>
                                                 <div class="col-12">
                                                     <input type="tel" class="form-control" name="client_pnum"
@@ -251,15 +436,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                                                 <!-- Vehicle Selection -->
                                                 <div class="col-12">
+                                                    <label class="form-label text-white">Select Vehicle</label>
                                                     <select class="form-select" name="vehicle_id" required>
                                                         <?php if (empty($vehicles)): ?>
-                                                            <option value="" disabled selected>No available vehicles at this
-                                                                time</option>
+                                                            <option disabled selected>No vehicles available</option>
                                                         <?php else: ?>
-                                                            <option value="">Select Vehicle</option>
-                                                            <?php foreach ($vehicles as $vehicle): ?>
-                                                                <option value="<?= htmlspecialchars($vehicle['VEHICLE_ID']) ?>">
-                                                                    <?= htmlspecialchars($vehicle['VEHICLE_NAME']) ?> -
+                                                            <option value="">Choose a vehicle</option>
+                                                            <?php foreach ($vehicles as $v): ?>
+                                                                <option value="<?= htmlspecialchars($v['VEHICLE_ID']) ?>"
+                                                                    <?= ($_POST['vehicle_id'] ?? '') == $v['VEHICLE_ID'] ? 'selected' : '' ?>>
+                                                                    <?= htmlspecialchars($v['VEHICLE_NAME']) ?> -
+                                                                    RM<?= number_format($v['RATE_PER_DAY'], 2) ?>/day
                                                                 </option>
                                                             <?php endforeach; ?>
                                                         <?php endif; ?>
@@ -268,26 +455,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                                                 <!-- Date/Time Selection -->
                                                 <div class="col-12">
-                                                    <div class="input-group">
-                                                        <div
-                                                            class="d-flex align-items-center bg-light text-body rounded-start p-2">
-                                                            <span class="fas fa-calendar-alt"></span><span
-                                                                class="ms-1">Pickup Date</span>
-                                                        </div>
-                                                        <input type="date" class="form-control" name="booking_date"
-                                                            required>
-                                                    </div>
+                                                    <label class="form-label text-white">Pickup Date</label>
+                                                    <input type="date" class="form-control" name="booking_date" 
+                                                        min="<?= date('Y-m-d') ?>" 
+                                                        value="<?= htmlspecialchars($_POST['booking_date'] ?? '') ?>" required>
                                                 </div>
                                                 <div class="col-12">
-                                                    <div class="input-group">
-                                                        <div
-                                                            class="d-flex align-items-center bg-light text-body rounded-start p-2">
-                                                            <span class="fas fa-calendar-alt"></span><span
-                                                                class="ms-1">Return Date</span>
-                                                        </div>
-                                                        <input type="date" class="form-control" name="return_date"
-                                                            required>
-                                                    </div>
+                                                    <label class="form-label text-white">Return Date</label>
+                                                    <input type="date" class="form-control" name="return_date" required>
                                                 </div>
                                                 <div class="col-12">
                                                     <button type="submit" name="booking"
@@ -295,7 +470,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                                 </div>
                                             </div>
                                         </form>
-                                    </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             <div class="col-lg-6 d-none d-lg-flex fadeInRight animated" data-animation="fadeInRight"
@@ -312,34 +487,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
     <!-- Carousel End -->
-
-    <!-- Modal -->
-    <div id="loginModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Login / Sign Up</h2>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="clientName">Name:</label>
-                    <input type="text" class="form-control" id="clientName" required>
-                </div>
-                <div class="form-group">
-                    <label for="clientPNum">Phone Number:</label>
-                    <input type="tel" class="form-control" id="clientPNum" required>
-                </div>
-                <div class="form-group">
-                    <label for="clientType">Client Type:</label>
-                    <select class="form-control" id="clientType" required>
-                        <option value="" disabled selected>Select your type</option>
-                        <option value="individual">Individual</option>
-                        <option value="business">Business</option>
-                        <option value="family">Family</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary">Submit</button>
-            </form>
-        </div>
-    </div>
 
     <!-- Features Start -->
     <div class="container-fluid feature py-5">
@@ -410,46 +557,87 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
     <!-- Features End -->
 
-    <!-- Fact Counter -->
     <div class="container-fluid counter bg-secondary py-5">
         <div class="container py-5">
             <div class="row g-5">
+                <?php
+                // Fetch dynamic counts from database
+                try {
+                    // Happy Clients Count
+                    $clientQuery = "SELECT COUNT(*) AS client_count FROM CARRENTAL.CLIENTS";
+                    $stmt = oci_parse($conn, $clientQuery);
+                    oci_execute($stmt);
+                    $clientCount = oci_fetch_assoc($stmt)['CLIENT_COUNT'];
+
+                    // Available Cars Count
+                    $carQuery = "SELECT COUNT(*) AS car_count 
+                               FROM CARRENTAL.VEHICLE v
+                               JOIN CARRENTAL.STATUS s ON v.STATUS_ID = s.STATUS_ID
+                               WHERE s.STATUS_TYPE = 'Available'";
+                    $stmt = oci_parse($conn, $carQuery);
+                    oci_execute($stmt);
+                    $carCount = oci_fetch_assoc($stmt)['CAR_COUNT'];
+
+                    // Car Centers (Hubs) Count
+                    $hubQuery = "SELECT COUNT(*) AS hub_count FROM CARRENTAL.HUB";
+                    $stmt = oci_parse($conn, $hubQuery);
+                    oci_execute($stmt);
+                    $hubCount = oci_fetch_assoc($stmt)['HUB_COUNT'];
+
+                } catch (Exception $e) {
+                    // Fallback values if database connection fails
+                    $clientCount = 829;
+                    $carCount = 56;
+                    $hubCount = 127;
+                }
+                ?>
+
                 <div class="col-md-6 col-lg-6 col-xl-3 wow fadeInUp" data-wow-delay="0.1s">
                     <div class="counter-item text-center">
                         <div class="counter-item-icon mx-auto">
                             <i class="fas fa-thumbs-up fa-2x"></i>
                         </div>
                         <div class="counter-counting my-3">
-                            <span class="text-white fs-2 fw-bold" data-toggle="counter-up">829</span>
+                            <span class="text-white fs-2 fw-bold" data-toggle="counter-up">
+                                <?= htmlspecialchars($clientCount) ?>
+                            </span>
                             <span class="h1 fw-bold text-white">+</span>
                         </div>
                         <h4 class="text-white mb-0">Happy Clients</h4>
                     </div>
                 </div>
+
                 <div class="col-md-6 col-lg-6 col-xl-3 wow fadeInUp" data-wow-delay="0.3s">
                     <div class="counter-item text-center">
                         <div class="counter-item-icon mx-auto">
                             <i class="fas fa-car-alt fa-2x"></i>
                         </div>
                         <div class="counter-counting my-3">
-                            <span class="text-white fs-2 fw-bold" data-toggle="counter-up">56</span>
+                            <span class="text-white fs-2 fw-bold" data-toggle="counter-up">
+                                <?= htmlspecialchars($carCount) ?>
+                            </span>
                             <span class="h1 fw-bold text-white">+</span>
                         </div>
-                        <h4 class="text-white mb-0">Number of Cars</h4>
+                        <h4 class="text-white mb-0">Available Cars</h4>
                     </div>
                 </div>
+
                 <div class="col-md-6 col-lg-6 col-xl-3 wow fadeInUp" data-wow-delay="0.5s">
                     <div class="counter-item text-center">
                         <div class="counter-item-icon mx-auto">
                             <i class="fas fa-building fa-2x"></i>
                         </div>
                         <div class="counter-counting my-3">
-                            <span class="text-white fs-2 fw-bold" data-toggle="counter-up">127</span>
+                            <span class="text-white fs-2 fw-bold" data-toggle="counter-up">
+                                <?= htmlspecialchars($hubCount) ?>
+                            </span>
                             <span class="h1 fw-bold text-white">+</span>
                         </div>
-                        <h4 class="text-white mb-0">Car Center</h4>
+                        <h4 class="text-white mb-0">Car Centers</h4>
                     </div>
                 </div>
+
+                <!-- Static Kilometers Counter -->
                 <div class="col-md-6 col-lg-6 col-xl-3 wow fadeInUp" data-wow-delay="0.7s">
                     <div class="counter-item text-center">
                         <div class="counter-item-icon mx-auto">
@@ -465,7 +653,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
     </div>
-    <!-- Fact Counter -->
+    <!-- Fact Counter End -->
 
     <!-- Car categories Start -->
     <div class="container-fluid categories pb-5 mt-4">
@@ -599,7 +787,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                     <i class="fa fa-car text-dark"></i> <span class="text-body ms-1">2015</span>
                                 </div>
                                 <div class="col-4 border-end border-white">
-                                    <i class="fa fa-cogs text-dark"></i> <span class="text-body ms-1">AUTO</span>
+                                    <i class="fa fa-cogs text-dark"></i> <span class="text-body ms -1">AUTO</span>
                                 </div>
                                 <div class="col-4">
                                     <i class="fa fa-road text-dark"></i> <span class="text-body ms-1">27K</span>
@@ -684,7 +872,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </div>
                 </div>
                 <div class="col-lg-4 wow fadeInUp" data-wow-delay="0.5s">
-                    <div class="steps-item p-4 mb-4">
+                    <div class="steps-item ```html
+ p-4 mb-4">
                         <h4>Set Location</h4>
                         <p class="mb-0">Lorem ipsum dolor sit amet consectetur adipisicing elit. Ad, dolorem!</p>
                         <div class="setps-number">03.</div>
@@ -755,7 +944,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <a class="btn btn-secondary btn-md-square rounded-circle me-3" href=""><i
                                     class="fab fa-twitter text-white"></i></a>
                             <a class="btn btn-secondary btn-md-square rounded-circle me-3" href=""><i
-                                    class="fab fa-instagram text-white"></i></a>
+                                    class="fab fa-instagram text-white "></i></a>
                             <a class="btn btn-secondary btn-md-square rounded-circle me-0" href=""><i
                                     class="fab fa-linkedin-in text-white"></i></a>
                         </div>
@@ -798,3 +987,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </body>
 
 </html>
+<?php
+// logout.php
+session_start();
+session_destroy();
+header("Location: index.php");
+exit;
+?>
