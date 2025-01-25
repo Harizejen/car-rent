@@ -57,7 +57,7 @@ $totalFeedbacks = getCount($conn, 'FEEDBACKS');
             <!-- Sidebar Menu -->
             <div class="sidebar">
                 <nav class="mt-2">
-                    <ul class="nav nav-pills nav-sidebar flex-column" role="menu" data-accordion="false">
+                    <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
                         <li class="nav-item">
                             <a href="dashboard.php" class="nav-link active">
                                 <i class="nav-icon fas fa-tachometer-alt"></i>

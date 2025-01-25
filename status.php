@@ -3,30 +3,17 @@ include 'db/db.php'; // Include the Oracle connection
 
 // Handle Add Status
 if (isset($_POST['add_status'])) {
-    $status_id = $_POST['status_id'];
     $status_type = $_POST['status_type'];
     $status_desc = $_POST['status_desc'];
 
-    // Check if STATUS_ID already exists
-    $check_sql = "SELECT COUNT(*) FROM STATUS WHERE STATUS_ID = :status_id";
-    $check_stmt = oci_parse($conn, $check_sql);
-    oci_bind_by_name($check_stmt, ':status_id', $status_id);
-    oci_execute($check_stmt);
-    $row = oci_fetch_assoc($check_stmt);
-
-    if ($row['COUNT(*)'] > 0) {
-        echo "<p style='color: red;'>Error: Status ID already exists. Please use a unique Status ID.</p>";
-    } else {
-        // Insert query with STATUS_ID
-        $sql = "INSERT INTO STATUS (STATUS_ID, STATUS_TYPE, STATUS_DESC) 
-                VALUES (:status_id, :status_type, :status_desc)";
-        $stmt = oci_parse($conn, $sql);
-        oci_bind_by_name($stmt, ':status_id', $status_id);
-        oci_bind_by_name($stmt, ':status_type', $status_type);
-        oci_bind_by_name($stmt, ':status_desc', $status_desc);
-        oci_execute($stmt);
-        echo "<p style='color: green;'>Status added successfully!</p>";
-    }
+    // Insert query without STATUS_ID
+    $sql = "INSERT INTO STATUS (STATUS_TYPE, STATUS_DESC) 
+            VALUES (:status_type, :status_desc)";
+    $stmt = oci_parse($conn, $sql);
+    oci_bind_by_name($stmt, ':status_type', $status_type);
+    oci_bind_by_name($stmt, ':status_desc', $status_desc);
+    oci_execute($stmt);
+    echo "<p style='color: green;'>Status added successfully!</p>";
 }
 
 // Handle Update Status
@@ -171,7 +158,6 @@ oci_execute($rsStatus);
                     </div>
                 </div>
             </div>
-
             <!-- Main content -->
             <div class="content">
                 <div class="container-fluid">
@@ -200,10 +186,6 @@ oci_execute($rsStatus);
                                         <!-- Add Status Tab -->
                                         <div class="tab-pane active" id="add">
                                             <form method="POST">
-                                                <div class="form-group">
-                                                    <label for="status_id">Status ID</label>
-                                                    <input type="number" class="form-control" name="status_id" placeholder="Status ID" required>
-                                                </div>
                                                 <div class="form-group">
                                                     <label for="status_type">Status Type</label>
                                                     <input type="text" class="form-control" name="status_type" placeholder="Status Type" required>
