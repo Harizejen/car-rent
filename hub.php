@@ -3,34 +3,21 @@ include 'db/db.php'; // Include the Oracle connection
 
 // Handle Add Hub
 if (isset($_POST['add_hub'])) {
-    $location_id = $_POST['location_id'];
     $state_name = $_POST['state_name'];
     $location_name = $_POST['location_name'];
     $address = $_POST['address'];
     $location_desc = $_POST['location_desc'];
 
-    // Check if LOCATION_ID already exists
-    $check_sql = "SELECT COUNT(*) FROM HUB WHERE LOCATION_ID = :location_id";
-    $check_stmt = oci_parse($conn, $check_sql);
-    oci_bind_by_name($check_stmt, ':location_id', $location_id);
-    oci_execute($check_stmt);
-    $row = oci_fetch_assoc($check_stmt);
-
-    if ($row['COUNT(*)'] > 0) {
-        echo "<p style='color: red;'>Error: Location ID already exists. Please use a unique Location ID.</p>";
-    } else {
-        // Insert query with LOCATION_ID
-        $sql = "INSERT INTO HUB (LOCATION_ID, STATE_NAME, LOCATION_NAME, ADDRESS, LOCATION_DESC) 
-                VALUES (:location_id, :state_name, :location_name, :address, :location_desc)";
-        $stmt = oci_parse($conn, $sql);
-        oci_bind_by_name($stmt, ':location_id', $location_id);
-        oci_bind_by_name($stmt, ':state_name', $state_name);
-        oci_bind_by_name($stmt, ':location_name', $location_name);
-        oci_bind_by_name($stmt, ':address', $address);
-        oci_bind_by_name($stmt, ':location_desc', $location_desc);
-        oci_execute($stmt);
-        echo "<p style='color: green;'>Hub added successfully!</p>";
-    }
+    // Insert query without LOCATION_ID
+    $sql = "INSERT INTO HUB (STATE_NAME, LOCATION_NAME, ADDRESS, LOCATION_DESC) 
+            VALUES (:state_name, :location_name, :address, :location_desc)";
+    $stmt = oci_parse($conn, $sql);
+    oci_bind_by_name($stmt, ':state_name', $state_name);
+    oci_bind_by_name($stmt, ':location_name', $location_name);
+    oci_bind_by_name($stmt, ':address', $address);
+    oci_bind_by_name($stmt, ':location_desc', $location_desc);
+    oci_execute($stmt);
+    echo "<p style='color: green;'>Hub added successfully!</p>";
 }
 
 // Handle Update Hub
@@ -210,10 +197,6 @@ oci_execute($rsHub);
                                         <!-- Add Hub Tab -->
                                         <div class="tab-pane active" id="add">
                                             <form method="POST">
-                                                <div class="form-group">
-                                                    <label for="location_id">Location ID</label>
-                                                    <input type="number" class="form-control" name="location_id" placeholder="Location ID" required>
-                                                </div>
                                                 <div class="form-group">
                                                     <label for="state_name">State Name</label>
                                                     <input type="text" class="form-control" name="state_name" placeholder="State Name" required>

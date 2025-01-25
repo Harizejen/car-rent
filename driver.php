@@ -3,7 +3,6 @@ include 'db/db.php'; // Include the Oracle connection
 
 // Handle Add Driver
 if (isset($_POST['add_driver'])) {
-    $driver_id = $_POST['driver_id'];
     $driver_name = $_POST['driver_name'];
     $driver_pnum = $_POST['driver_pnum'];
     $rating = $_POST['rating'];
@@ -12,31 +11,19 @@ if (isset($_POST['add_driver'])) {
     $rate = $_POST['rate'];
     $onleave_rate = $_POST['onleave_rate'];
 
-    // Check if DRIVER_ID already exists
-    $check_sql = "SELECT COUNT(*) FROM DRIVERS WHERE DRIVER_ID = :driver_id";
-    $check_stmt = oci_parse($conn, $check_sql);
-    oci_bind_by_name($check_stmt, ':driver_id', $driver_id);
-    oci_execute($check_stmt);
-    $row = oci_fetch_assoc($check_stmt);
-
-    if ($row['COUNT(*)'] > 0) {
-        echo "<p style='color: red;'>Error: Driver ID already exists. Please use a unique Driver ID.</p>";
-    } else {
-        // Insert query with DRIVER_ID
-        $sql = "INSERT INTO DRIVERS (DRIVER_ID, DRIVER_NAME, DRIVER_PNUM, RATING, LICENSE_NUM, STATUS_ID, RATE, ONLEAVE_RATE) 
-                VALUES (:driver_id, :driver_name, :driver_pnum, :rating, :license_num, :status_id, :rate, :onleave_rate)";
-        $stmt = oci_parse($conn, $sql);
-        oci_bind_by_name($stmt, ':driver_id', $driver_id);
-        oci_bind_by_name($stmt, ':driver_name', $driver_name);
-        oci_bind_by_name($stmt, ':driver_pnum', $driver_pnum);
-        oci_bind_by_name($stmt, ':rating', $rating);
-        oci_bind_by_name($stmt, ':license_num', $license_num);
-        oci_bind_by_name($stmt, ':status_id', $status_id);
-        oci_bind_by_name($stmt, ':rate', $rate);
-        oci_bind_by_name($stmt, ':onleave_rate', $onleave_rate);
-        oci_execute($stmt);
-        echo "<p style='color: green;'>Driver added successfully!</p>";
-    }
+    // Insert query without DRIVER_ID
+    $sql = "INSERT INTO DRIVERS (DRIVER_NAME, DRIVER_PNUM, RATING, LICENSE_NUM, STATUS_ID, RATE, ONLEAVE_RATE) 
+            VALUES (:driver_name, :driver_pnum, :rating, :license_num, :status_id, :rate, :onleave_rate)";
+    $stmt = oci_parse($conn, $sql);
+    oci_bind_by_name($stmt, ':driver_name', $driver_name);
+    oci_bind_by_name($stmt, ':driver_pnum', $driver_pnum);
+    oci_bind_by_name($stmt, ':rating', $rating);
+    oci_bind_by_name($stmt, ':license_num', $license_num);
+    oci_bind_by_name($stmt, ':status_id', $status_id);
+    oci_bind_by_name($stmt, ':rate', $rate);
+    oci_bind_by_name($stmt, ':onleave_rate', $onleave_rate);
+    oci_execute($stmt);
+    echo "<p style='color: green;'>Driver added successfully!</p>";
 }
 
 // Handle Update Driver
@@ -225,10 +212,6 @@ oci_execute($rsDriver);
                                         <!-- Add Driver Tab -->
                                         <div class="tab-pane active" id="add">
                                             <form method="POST">
-                                                <div class="form-group">
-                                                    <label for="driver_id">Driver ID</label>
-                                                    <input type="number" class="form-control" name="driver_id" placeholder="Driver ID" required>
-                                                </div>
                                                 <div class="form-group">
                                                     <label for="driver_name">Driver Name</label>
                                                     <input type="text" class="form-control" name="driver_name" placeholder="Driver Name" required>
