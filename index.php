@@ -27,13 +27,13 @@ while ($row = oci_fetch_assoc($stmt)) {
     $vehicles[] = $row;
 }
 
-// Debugging output
-if (empty($vehicles)) {
-    echo "No available vehicles found.";
-} else {
-    echo "Available vehicles retrieved successfully.";
-    print_r($vehicles); // Print the retrieved vehicles for debugging
-}
+// // Debugging output
+// if (empty($vehicles)) {
+//     echo "No available vehicles found.";
+// } else {
+//     echo "Available vehicles retrieved successfully.";
+//     print_r($vehicles); // Print the retrieved vehicles for debugging
+// }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['booking'])) {
