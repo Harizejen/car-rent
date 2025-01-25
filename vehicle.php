@@ -3,7 +3,6 @@ include 'db/db.php'; // Include the Oracle connection
 
 // Handle Add Vehicle
 if (isset($_POST['add_vehicle'])) {
-    $vehicle_id = $_POST['vehicle_id'];
     $vehicle_name = $_POST['vehicle_name'];
     $license_plate = $_POST['license_plate'];
     $vehicle_type = $_POST['vehicle_type'];
@@ -11,30 +10,18 @@ if (isset($_POST['add_vehicle'])) {
     $driver_id = $_POST['driver_id'];
     $status_id = $_POST['status_id'];
 
-    // Check if VEHICLE_ID already exists
-    $check_sql = "SELECT COUNT(*) FROM VEHICLE WHERE VEHICLE_ID = :vehicle_id";
-    $check_stmt = oci_parse($conn, $check_sql);
-    oci_bind_by_name($check_stmt, ':vehicle_id', $vehicle_id);
-    oci_execute($check_stmt);
-    $row = oci_fetch_assoc($check_stmt);
-
-    if ($row['COUNT(*)'] > 0) {
-        echo "<p style='color: red;'>Error: Vehicle ID already exists. Please use a unique Vehicle ID.</p>";
-    } else {
-        // Insert query with VEHICLE_ID
-        $sql = "INSERT INTO VEHICLE (VEHICLE_ID, VEHICLE_NAME, LICENSE_PLATE, VEHICLE_TYPE, LOCATION_ID, DRIVER_ID, STATUS_ID) 
-                VALUES (:vehicle_id, :vehicle_name, :license_plate, :vehicle_type, :location_id, :driver_id, :status_id)";
-        $stmt = oci_parse($conn, $sql);
-        oci_bind_by_name($stmt, ':vehicle_id', $vehicle_id);
-        oci_bind_by_name($stmt, ':vehicle_name', $vehicle_name);
-        oci_bind_by_name($stmt, ':license_plate', $license_plate);
-        oci_bind_by_name($stmt, ':vehicle_type', $vehicle_type);
-        oci_bind_by_name($stmt, ':location_id', $location_id);
-        oci_bind_by_name($stmt, ':driver_id', $driver_id);
-        oci_bind_by_name($stmt, ':status_id', $status_id);
-        oci_execute($stmt);
-        echo "<p style='color: green;'>Vehicle added successfully!</p>";
-    }
+    // Insert query without VEHICLE_ID
+    $sql = "INSERT INTO VEHICLE (VEHICLE_NAME, LICENSE_PLATE, VEHICLE_TYPE, LOCATION_ID, DRIVER_ID, STATUS_ID) 
+            VALUES (:vehicle_name, :license_plate, :vehicle_type, :location_id, :driver_id, :status_id)";
+    $stmt = oci_parse($conn, $sql);
+    oci_bind_by_name($stmt, ':vehicle_name', $vehicle_name);
+    oci_bind_by_name($stmt, ':license_plate', $license_plate);
+    oci_bind_by_name($stmt, ':vehicle_type', $vehicle_type);
+    oci_bind_by_name($stmt, ':location_id', $location_id);
+    oci_bind_by_name($stmt, ':driver_id', $driver_id);
+    oci_bind_by_name($stmt, ':status_id', $status_id);
+    oci_execute($stmt);
+    echo "<p style='color: green;'>Vehicle added successfully!</p>";
 }
 
 // Handle Update Vehicle
@@ -220,10 +207,6 @@ oci_execute($rsVehicle);
                                         <!-- Add Vehicle Tab -->
                                         <div class="tab-pane active" id="add">
                                             <form method="POST">
-                                                <div class="form-group">
-                                                    <label for="vehicle_id">Vehicle ID</label>
-                                                    <input type="number" class="form-control" name="vehicle_id" placeholder="Vehicle ID" required>
-                                                </div>
                                                 <div class="form-group">
                                                     <label for="vehicle_name">Vehicle Name</label>
                                                     <input type="text" class="form-control" name="vehicle_name" placeholder="Vehicle Name" required>

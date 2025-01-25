@@ -121,6 +121,27 @@ if (isset($_POST['add_driver'])) {
     }
 
     oci_free_statement($insert_stmt);
+    $driver_name = $_POST['driver_name'];
+    $driver_pnum = $_POST['driver_pnum'];
+    $rating = $_POST['rating'];
+    $license_num = $_POST['license_num'];
+    $status_id = $_POST['status_id'];
+    $rate = $_POST['rate'];
+    $onleave_rate = $_POST['onleave_rate'];
+
+    // Insert query without DRIVER_ID
+    $sql = "INSERT INTO DRIVERS (DRIVER_NAME, DRIVER_PNUM, RATING, LICENSE_NUM, STATUS_ID, RATE, ONLEAVE_RATE) 
+            VALUES (:driver_name, :driver_pnum, :rating, :license_num, :status_id, :rate, :onleave_rate)";
+    $stmt = oci_parse($conn, $sql);
+    oci_bind_by_name($stmt, ':driver_name', $driver_name);
+    oci_bind_by_name($stmt, ':driver_pnum', $driver_pnum);
+    oci_bind_by_name($stmt, ':rating', $rating);
+    oci_bind_by_name($stmt, ':license_num', $license_num);
+    oci_bind_by_name($stmt, ':status_id', $status_id);
+    oci_bind_by_name($stmt, ':rate', $rate);
+    oci_bind_by_name($stmt, ':onleave_rate', $onleave_rate);
+    oci_execute($stmt);
+    echo "<p style='color: green;'>Driver added successfully!</p>";
 }
 
 // Handle Update Driver
