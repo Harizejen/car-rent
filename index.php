@@ -1,89 +1,21 @@
 <?php
+
+// Secure session configuration
+session_start([
+    'cookie_lifetime' => 86400,
+    'cookie_secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    'cookie_httponly' => true,
+    'cookie_samesite' => 'Lax'
+]);
+
+// Generate CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 include 'db/db.php';
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-session_start();
-
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login'])) {
-    try {
-        if (empty($_POST['email']) || empty($_POST['password'])) {
-            throw new Exception("Email and password are required");
-        }
-
-        $query = "SELECT CLIENT_ID, CLIENT_NAME, PASSWORD 
-                FROM CARRENTAL.CLIENTS 
-                WHERE EMAIL = :email";
-        
-        $stmt = oci_parse($conn, $query);
-        oci_bind_by_name($stmt, ":email", $_POST['email']);
-        oci_execute($stmt);
-
-        if ($user = oci_fetch_assoc($stmt)) {
-            if (password_verify($_POST['password'], $user['PASSWORD'])) {
-                $_SESSION['client_id'] = $user['CLIENT_ID'];
-                $_SESSION['client_name'] = $user['CLIENT_NAME'];
-                header("Location: index.php");
-                exit;
-            } else {
-                throw new Exception("Invalid credentials");
-            }
-        } else {
-            throw new Exception("User  not found");
-        }
-
-    } catch (Exception $e) {
-        $_SESSION['error'] = $e->getMessage();
-        header("Location: index.php");
-        exit;
-    }
-}
-
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['signup'])) {
-    try {
-        // Validate required fields
-        $required = ['name', 'pnum', 'type', 'email', 'password'];
-        foreach ($required as $field) {
-            if (empty($_POST[$field])) {
-                throw new Exception("All fields are required");
-            }
-        }
-
-        // Hash password
-        $hashed_password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-
-        // Prepare insert statement
-        $query = "INSERT INTO CARRENTAL.CLIENTS 
-                (CLIENT_NAME, CLIENT_PNUM, CLIENT_TYPE, EMAIL, PASSWORD) 
-                VALUES (:name, :pnum, :type, :email, :password)
-                RETURNING CLIENT_ID INTO :client_id";
-
-        $stmt = oci_parse($conn, $query);
-        
-        // Bind all parameters
-        oci_bind_by_name($stmt, ":name", $_POST['name']);
-        oci_bind_by_name($stmt, ":pnum", $_POST['pnum']);
-        oci_bind_by_name($stmt, ":type", $_POST['type']);
-        oci_bind_by_name($stmt, ":email", $_POST['email']);
-        oci_bind_by_name($stmt, ":password", $hashed_password);
-        oci_bind_by_name($stmt, ":client_id", $client_id, 32);
-
-        if (!oci_execute($stmt)) {
-            throw new Exception("Registration failed");
-        }
-
-        // Set session variables
-        $_SESSION['client_id'] = $client_id;
-        $_SESSION['client_name'] = $_POST['name'];
-        
-        header("Location: index.php");
-        exit;
-
-    } catch (Exception $e) {
-        $_SESSION['error'] = $e->getMessage();
-        header("Location: index.php");
-        exit;
-    }
-}
 
 // Enhanced error handling
 set_exception_handler(function ($e) {
@@ -102,7 +34,7 @@ try {
     if (!$stmt) {
         throw new Exception("Database query preparation failed");
     }
-    
+
     if (!oci_execute($stmt)) {
         throw new Exception("Database query execution failed");
     }
@@ -116,115 +48,23 @@ try {
     die("A database error occurred. Please try again later.");
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['booking'])) {
-    try {
-        oci_begin($conn); // Start transaction
+//get location
+// Query execution
+$query = "SELECT LOCATION_ID, STATE_NAME, LOCATION_NAME FROM CARRENTAL.HUB";
+$stmt = oci_parse($conn, $query);
 
-        // Client registration with validation
-        $requiredFields = [
-            'client_name',
-            'client_pnum',
-            'client_type',
-            'vehicle_id',
-            'booking_date',
-            'return_date'
-        ];
-        foreach ($requiredFields as $field) {
-            if (empty($_POST[$field]))
-                throw new Exception("Missing required field: $field");
-        }
-
-        // Insert client
-        $clientQuery = "INSERT INTO CARRENTAL.CLIENTS (CLIENT_NAME, CLIENT_PNUM, CLIENT_TYPE) 
-                       VALUES (:name, :pnum, :type)
-                       RETURNING CLIENT_ID INTO :client_id";
-
-        $stmt = oci_parse($conn, $clientQuery);
-        oci_bind_by_name($stmt, ":name", $_POST['client_name']);
-        oci_bind_by_name($stmt, ":pnum", $_POST['client_pnum']);
-        oci_bind_by_name($stmt, ":type", $_POST['client_type']);
-        oci_bind_by_name($stmt, ":client_id", $client_id, 32);
-        oci_execute($stmt) or handleOracleError($stmt);
-
-        // Get vehicle details
-        $vehicle_id = $_POST['vehicle_id'];
-        $vehicleQuery = "SELECT LOCATION_ID, RATE_PER_DAY 
-                        FROM CARRENTAL.VEHICLE 
-                        WHERE VEHICLE_ID = :vehicle_id
-                        AND STATUS_ID = (SELECT STATUS_ID FROM CARRENTAL.STATUS WHERE STATUS_TYPE = 'Available')";
-
-        $stmt = oci_parse($conn, $vehicleQuery);
-        oci_bind_by_name($stmt, ":vehicle_id", $vehicle_id);
-        oci_execute($stmt) or handleOracleError($stmt);
-        $vehicle = oci_fetch_assoc($stmt);
-
-        if (!$vehicle)
-            throw new Exception("Selected vehicle is no longer available");
-
-        // Validate dates
-        $pickup = new DateTime($_POST['booking_date']);
-        $dropoff = new DateTime($_POST['return_date']);
-        if ($pickup >= $dropoff)
-            throw new Exception("Return date must be after pickup date");
-        $duration = $pickup->diff($dropoff)->days;
-
-        // Insert booking
-        $bookingQuery = "INSERT INTO CARRENTAL.BOOKINGS (
-            BOOKING_DATE, RETURN_DATE,
-            PICKUP_LOCATION_ID, DROPOFF_LOCATION_ID, 
-            CLIENT_ID, VEHICLE_ID, STATUS_ID, DURATION
-        ) VALUES (
-            TO_DATE(:booking_date, 'YYYY-MM-DD'), 
-            TO_DATE(:return_date, 'YYYY-MM-DD'),
-            :pickup_loc, :dropoff_loc, 
-            :client_id, :vehicle_id, 
-            (SELECT STATUS_ID FROM CARRENTAL.STATUS WHERE STATUS_TYPE = 'Booked'), 
-            :duration
-        ) RETURNING BOOKING_ID INTO :booking_id";
-
-        $stmt = oci_parse($conn, $bookingQuery);
-        oci_bind_by_name($stmt, ":booking_date", $_POST['booking_date']);
-        oci_bind_by_name($stmt, ":return_date", $_POST['return_date']);
-        oci_bind_by_name($stmt, ":pickup_loc", $vehicle['LOCATION_ID']);
-        oci_bind_by_name($stmt, ":dropoff_loc", $vehicle['LOCATION_ID']);
-        oci_bind_by_name($stmt, ":client_id", $client_id);
-        oci_bind_by_name($stmt, ":vehicle_id", $vehicle_id);
-        oci_bind_by_name($stmt, ":duration", $duration);
-        oci_bind_by_name($stmt, ":booking_id", $booking_id, 32);
-        oci_execute($stmt) or handleOracleError($stmt);
-
-        // Insert payment
-        $amount = $duration * $vehicle['RATE_PER_DAY'];
-        $paymentQuery = "INSERT INTO CARRENTAL.PAYMENTS (
-            PAYMENT_METHOD, PAYMENT_DATE, AMOUNT, BOOKING_ID, STATUS_ID
-        ) VALUES (
-            'Online', SYSDATE, :amount, :booking_id, 
-            (SELECT STATUS_ID FROM CARRENTAL.STATUS WHERE STATUS_TYPE = 'Completed')
-        )";
-
-        $stmt = oci_parse($conn, $paymentQuery);
-        oci_bind_by_name($stmt, ":amount", $amount);
-        oci_bind_by_name($stmt, ":booking_id", $booking_id);
-        oci_execute($stmt) or handleOracleError($stmt);
-
-        oci_commit($conn);
-        $_SESSION['booking_id'] = $booking_id;
-        header("Location: confirmation.php");
-        exit;
-
-    } catch (Exception $e) {
-        oci_rollback($conn);
-        $_SESSION['error'] = $e->getMessage();
-        header("Location: index.php");
-        exit;
-    }
+if (!oci_execute($stmt)) {
+    $error = oci_error($stmt);
+    die("Query Error: " . $error['message']);
 }
 
-function handleOracleError($resource) {
-    $error = oci_error($resource);
-    error_log("Oracle Error: " . $error['message']);
-    throw new Exception("Database operation failed");
+// Fetch results
+$hubs = [];
+while ($row = oci_fetch_assoc($stmt)) {
+    $hubs[] = $row;
 }
+// Debug: Check number of fetched rows
+error_log("Fetched hubs: " . count($hubs));
 ?>
 
 <!DOCTYPE html>
@@ -359,22 +199,28 @@ function handleOracleError($resource) {
                                         <div class="tab-content">
                                             <!-- Login Form -->
                                             <div class="tab-pane fade show active" id="login">
-                                                <form action="index.php" method="POST">
+                                                <form action="controller/userLogin.php" method="POST">
+                                                    <input type="hidden" name="csrf_token"
+                                                        value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                                                     <div class="mb-3">
                                                         <label class="form-label text-white">Email</label>
                                                         <input type="email" class="form-control" name="email" required>
                                                     </div>
                                                     <div class="mb-3">
                                                         <label class="form-label text-white">Password</label>
-                                                        <input type="password" class="form-control" name="password" required>
+                                                        <input type="password" class="form-control" name="password"
+                                                            required>
                                                     </div>
-                                                    <button type="submit" name="login" class="btn btn-light w-100">Login</button>
+                                                    <button type="submit" name="login"
+                                                        class="btn btn-light w-100">Login</button>
                                                 </form>
                                             </div>
 
                                             <!-- Signup Form -->
                                             <div class="tab-pane fade" id="signup">
-                                                <form action="index.php" method="POST">
+                                                <form action="controller/userSignUp.php" method="POST">
+                                                    <input type="hidden" name="csrf_token"
+                                                        value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                                                     <div class="mb-3">
                                                         <label class="form-label text-white">Full Name</label>
                                                         <input type="text" class="form-control" name="name" required>
@@ -397,9 +243,11 @@ function handleOracleError($resource) {
                                                     </div>
                                                     <div class="mb-3">
                                                         <label class="form-label text-white">Password</label>
-                                                        <input type="password" class="form-control" name="password" required>
+                                                        <input type="password" class="form-control" name="password"
+                                                            required>
                                                     </div>
-                                                    <button type="submit" name="signup" class="btn btn-light w-100">Sign Up</button>
+                                                    <button type="submit" name="signup" class="btn btn-light w-100">Sign
+                                                        Up</button>
                                                 </form>
                                             </div>
                                         </div>
@@ -407,25 +255,32 @@ function handleOracleError($resource) {
                                         <!-- Booking Form for Logged-in Users -->
                                         <div class="d-flex justify-content-between align-items-center mb-4">
                                             <?php if (isset($_SESSION['client_name'])): ?>
-                                                <h5 class="text-white">Welcome, <?= htmlspecialchars($_SESSION['client_name']) ?></h5>
+                                                <h5 class="text-white">Welcome,
+                                                    <?= htmlspecialchars($_SESSION['client_name']) ?>
+                                                </h5>
                                             <?php endif; ?>
-                                            <a href="logout.php" class="btn btn-sm btn-outline-light">Logout</a>
+                                            <a href="controller/userLogout.php"
+                                                class="btn btn-sm btn-outline-light">Logout</a>
                                         </div>
 
-                                        <form id="bookingForm" action="index.php" method="POST" novalidate>
+                                        <form id="bookingForm" action="controller/userAddBooking.php" method="POST"
+                                            novalidate>
+                                            <input type="hidden" name="csrf_token"
+                                                value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                                             <div class="row g-3">
-                                                <!-- Client Registration Fields -->
+                                                <!-- Client Info -->
                                                 <div class="col-12">
                                                     <label class="form-label text-white">Full Name</label>
-                                                    <input type="text" class="form-control" name="client_name"
-                                                        placeholder="Full Name"
-                                                        value="<?= htmlspecialchars($_POST['client_name'] ?? '') ?>"
-                                                        required>
+                                                    <input type="text" class="form-control"
+                                                        value="<?= htmlspecialchars($_SESSION['client_name']) ?>" disabled>
                                                 </div>
+
                                                 <div class="col-12">
                                                     <input type="tel" class="form-control" name="client_pnum"
-                                                        placeholder="Phone Number" required>
+                                                        placeholder="Phone Number (e.g., 012-3456789)"
+                                                        pattern="[0-9]{10,15}" title="10-15 digits only" required>
                                                 </div>
+
                                                 <div class="col-12">
                                                     <select class="form-select" name="client_type" required>
                                                         <option value="individual">Individual</option>
@@ -433,36 +288,62 @@ function handleOracleError($resource) {
                                                         <option value="family">Family</option>
                                                     </select>
                                                 </div>
+                                                <!-- Pickup -->
+                                                <div class="col-12">
+                                                    <label class="form-label text-white">Pickup Location</label>
+                                                    <select class="form-select" name="pickup_location" required>
+                                                        <option value="">Select Pickup Location</option>
+                                                        <?php foreach ($hubs as $hub): ?>
+                                                            <option value="<?= htmlspecialchars($hub['LOCATION_ID']) ?>">
+                                                                <?= htmlspecialchars($hub['STATE_NAME']) ?> -
+                                                                <?= htmlspecialchars($hub['LOCATION_NAME']) ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </div>
+                                                <!-- DropOff -->
+                                                <div class="col-12">
+                                                    <label class="form-label text-white">Drop-off Location</label>
+                                                    <select class="form-select" name="dropoff_location" required>
+                                                        <option value="">Select Drop-off Location</option>
+                                                        <?php foreach ($hubs as $hub): ?>
+                                                            <option value="<?= htmlspecialchars($hub['LOCATION_ID']) ?>">
+                                                                <?= htmlspecialchars($hub['STATE_NAME']) ?> -
+                                                                <?= htmlspecialchars($hub['LOCATION_NAME']) ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </div>
 
                                                 <!-- Vehicle Selection -->
                                                 <div class="col-12">
-                                                    <label class="form-label text-white">Select Vehicle</label>
                                                     <select class="form-select" name="vehicle_id" required>
-                                                        <?php if (empty($vehicles)): ?>
-                                                            <option disabled selected>No vehicles available</option>
-                                                        <?php else: ?>
-                                                            <option value="">Choose a vehicle</option>
-                                                            <?php foreach ($vehicles as $v): ?>
-                                                                <option value="<?= htmlspecialchars($v['VEHICLE_ID']) ?>"
-                                                                    <?= ($_POST['vehicle_id'] ?? '') == $v['VEHICLE_ID'] ? 'selected' : '' ?>>
-                                                                    <?= htmlspecialchars($v['VEHICLE_NAME']) ?> -
-                                                                    RM<?= number_format($v['RATE_PER_DAY'], 2) ?>/day
-                                                                </option>
-                                                            <?php endforeach; ?>
-                                                        <?php endif; ?>
+                                                        <?php foreach ($vehicles as $v): ?>
+                                                            <option value="<?= htmlspecialchars($v['VEHICLE_ID']) ?>">
+                                                                <?= htmlspecialchars($v['VEHICLE_NAME']) ?> -
+                                                                RM<?= htmlspecialchars($v['RATE_PER_DAY']) ?>/day
+                                                            </option>
+                                                        <?php endforeach; ?>
                                                     </select>
                                                 </div>
 
                                                 <!-- Date/Time Selection -->
+                                                <!-- Booking Date -->
                                                 <div class="col-12">
-                                                    <label class="form-label text-white">Pickup Date</label>
-                                                    <input type="date" class="form-control" name="booking_date" 
-                                                        min="<?= date('Y-m-d') ?>" 
-                                                        value="<?= htmlspecialchars($_POST['booking_date'] ?? '') ?>" required>
+                                                    <label class="form-label text-white">Booking Start Date</label>
+                                                    <input type="date" class="form-control" name="booking_date"
+                                                        min="<?= date('Y-m-d') ?>"
+                                                        value="<?= htmlspecialchars($_POST['booking_date'] ?? '') ?>"
+                                                        required>
                                                 </div>
+
+                                                <!-- Return Date -->
                                                 <div class="col-12">
                                                     <label class="form-label text-white">Return Date</label>
-                                                    <input type="date" class="form-control" name="return_date" required>
+                                                    <input type="date" class="form-control" name="return_date"
+                                                        min="<?= date('Y-m-d') ?>"
+                                                        value="<?= htmlspecialchars($_POST['return_date'] ?? '') ?>"
+                                                        required>
                                                 </div>
                                                 <div class="col-12">
                                                     <button type="submit" name="booking"
@@ -989,8 +870,8 @@ function handleOracleError($resource) {
 </html>
 <?php
 // logout.php
-session_start();
-session_destroy();
-header("Location: index.php");
-exit;
+// session_start();
+// session_destroy();
+// header("Location: index.php");
+// exit;
 ?>
