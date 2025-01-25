@@ -3,124 +3,6 @@ include 'db/db.php'; // Include the Oracle connection
 
 // Handle Add Driver
 if (isset($_POST['add_driver'])) {
-    // Validate required fields
-    $requiredFields = [
-        'driver_id',
-        'driver_name',
-        'driver_pnum',
-        'rating',
-        'license_num',
-        'status_id',
-        'rate',
-        'onleave_rate'
-    ];
-
-    $missingFields = [];
-    foreach ($requiredFields as $field) {
-        if (empty($_POST[$field])) {
-            $missingFields[] = $field;
-        }
-    }
-
-    if (!empty($missingFields)) {
-        echo "<p style='color: red;'>Error: Missing required fields: " . implode(', ', $missingFields) . "</p>";
-        exit;
-    }
-
-    // Sanitize and validate input
-    $driver_id = trim($_POST['driver_id']);
-    $driver_name = htmlspecialchars(trim($_POST['driver_name']));
-    $driver_pnum = preg_replace('/[^0-9]/', '', $_POST['driver_pnum']);
-    $rating = filter_var($_POST['rating'], FILTER_VALIDATE_FLOAT, [
-        'options' => [
-            'min_range' => 0,
-            'max_range' => 5
-        ]
-    ]);
-    $license_num = trim($_POST['license_num']);
-    $status_id = trim($_POST['status_id']);
-    $rate = filter_var($_POST['rate'], FILTER_VALIDATE_FLOAT);
-    $onleave_rate = filter_var($_POST['onleave_rate'], FILTER_VALIDATE_FLOAT);
-
-    // Validate input values
-    $errors = [];
-    if (!preg_match('/^[A-Za-z0-9]+$/', $driver_id)) {
-        $errors[] = "Invalid Driver ID format";
-    }
-    if (strlen($driver_pnum) < 10) {
-        $errors[] = "Invalid phone number";
-    }
-    if ($rating === false) {
-        $errors[] = "Rating must be between 0 and 5";
-    }
-    if ($rate === false || $rate < 0) {
-        $errors[] = "Invalid rate value";
-    }
-    if ($onleave_rate === false || $onleave_rate < 0) {
-        $errors[] = "Invalid onleave rate value";
-    }
-
-    if (!empty($errors)) {
-        echo "<p style='color: red;'>Error: " . implode('<br>', $errors) . "</p>";
-        exit;
-    }
-
-    // Check database connection
-    if (!$conn) {
-        $e = oci_error();
-        echo "<p style='color: red;'>Database connection error: " . htmlspecialchars($e['message']) . "</p>";
-        exit;
-    }
-
-    // Check if DRIVER_ID exists using a more efficient query
-    $check_sql = "SELECT 1 FROM DRIVERS WHERE DRIVER_ID = :driver_id";
-    $check_stmt = oci_parse($conn, $check_sql);
-    oci_bind_by_name($check_stmt, ':driver_id', $driver_id);
-
-    if (!oci_execute($check_stmt)) {
-        $e = oci_error($check_stmt);
-        echo "<p style='color: red;'>Database error: " . htmlspecialchars($e['message']) . "</p>";
-        exit;
-    }
-
-    if (oci_fetch($check_stmt)) {
-        echo "<p style='color: red;'>Error: Driver ID already exists. Please use a unique Driver ID.</p>";
-        oci_free_statement($check_stmt);
-        exit;
-    }
-    oci_free_statement($check_stmt);
-
-    // Insert new driver with transaction handling
-    $insert_sql = "INSERT INTO DRIVERS (DRIVER_ID, DRIVER_NAME, DRIVER_PNUM, RATING, LICENSE_NUM, STATUS_ID, RATE, ONLEAVE_RATE) 
-                   VALUES (:driver_id, :driver_name, :driver_pnum, :rating, :license_num, :status_id, :rate, :onleave_rate)";
-    $insert_stmt = oci_parse($conn, $insert_sql);
-
-    oci_bind_by_name($insert_stmt, ':driver_id', $driver_id);
-    oci_bind_by_name($insert_stmt, ':driver_name', $driver_name);
-    oci_bind_by_name($insert_stmt, ':driver_pnum', $driver_pnum);
-    oci_bind_by_name($insert_stmt, ':rating', $rating);
-    oci_bind_by_name($insert_stmt, ':license_num', $license_num);
-    oci_bind_by_name($insert_stmt, ':status_id', $status_id);
-    oci_bind_by_name($insert_stmt, ':rate', $rate);
-    oci_bind_by_name($insert_stmt, ':onleave_rate', $onleave_rate);
-
-    // Execute with error handling
-    $result = oci_execute($insert_stmt);
-
-    if (!$result) {
-        $e = oci_error($insert_stmt);
-        // Handle unique constraint violation specifically
-        if (strpos($e['message'], 'ORA-00001') !== false) {
-            echo "<p style='color: red;'>Error: Driver ID already exists. Please use a unique Driver ID.</p>";
-        } else {
-            echo "<p style='color: red;'>Database error: " . htmlspecialchars($e['message']) . "</p>";
-        }
-    } else {
-        echo "<p style='color: green;'>Driver added successfully!</p>";
-        oci_commit($conn); // Explicit commit
-    }
-
-    oci_free_statement($insert_stmt);
     $driver_name = $_POST['driver_name'];
     $driver_pnum = $_POST['driver_pnum'];
     $rating = $_POST['rating'];
@@ -196,7 +78,6 @@ oci_execute($rsDriver);
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -205,7 +86,6 @@ oci_execute($rsDriver);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
-
 <body class="hold-transition sidebar-mini">
     <div class="wrapper">
         <!-- Navbar -->
@@ -231,8 +111,7 @@ oci_execute($rsDriver);
             <!-- Sidebar -->
             <div class="sidebar">
                 <nav class="mt-2">
-                    <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
-                        data-accordion="false">
+                    <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
                         <li class="nav-item">
                             <a href="dashboard.php" class="nav-link">
                                 <i class="nav-icon fas fa-tachometer-alt"></i>
@@ -333,48 +212,35 @@ oci_execute($rsDriver);
                                         <!-- Add Driver Tab -->
                                         <div class="tab-pane active" id="add">
                                             <form method="POST">
-                                                <!-- <div class="form-group">
-                                                    <label for="driver_id">Driver ID</label>
-                                                    <input type="number" class="form-control" name="driver_id"
-                                                        placeholder="Driver ID" required>
-                                                </div> -->
                                                 <div class="form-group">
                                                     <label for="driver_name">Driver Name</label>
-                                                    <input type="text" class="form-control" name="driver_name"
-                                                        placeholder="Driver Name" required>
+                                                    <input type="text" class="form-control" name="driver_name" placeholder="Driver Name" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="driver_pnum">Driver Phone Number</label>
-                                                    <input type="text" class="form-control" name="driver_pnum"
-                                                        placeholder="Driver Phone Number" required>
+                                                    <input type="text" class="form-control" name="driver_pnum" placeholder="Driver Phone Number" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="rating">Rating</label>
-                                                    <input type="number" step="0.1" class="form-control" name="rating"
-                                                        placeholder="Rating" required>
+                                                    <input type="number" step="0.1" class="form-control" name="rating" placeholder="Rating" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="license_num">License Number</label>
-                                                    <input type="text" class="form-control" name="license_num"
-                                                        placeholder="License Number" required>
+                                                    <input type="text" class="form-control" name="license_num" placeholder="License Number" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="status_id">Status ID</label>
-                                                    <input type="number" class="form-control" name="status_id"
-                                                        placeholder="Status ID" required>
+                                                    <input type="number" class="form-control" name="status_id" placeholder="Status ID" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="rate">Rate</label>
-                                                    <input type="number" class="form-control" name="rate"
-                                                        placeholder="Rate" required>
+                                                    <input type="number" class="form-control" name="rate" placeholder="Rate" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="onleave_rate">On Leave Rate</label>
-                                                    <input type="number" class="form-control" name="onleave_rate"
-                                                        placeholder="On Leave Rate" required>
+                                                    <input type="number" class="form-control" name="onleave_rate" placeholder="On Leave Rate" required>
                                                 </div>
-                                                <button type="submit" name="add_driver" class="btn btn-primary">Add
-                                                    Driver</button>
+                                                <button type="submit" name="add_driver" class="btn btn-primary">Add Driver</button>
                                             </form>
                                         </div>
 
@@ -383,46 +249,37 @@ oci_execute($rsDriver);
                                             <form method="POST">
                                                 <div class="form-group">
                                                     <label for="driver_id">Driver ID</label>
-                                                    <input type="number" class="form-control" name="driver_id"
-                                                        placeholder="Driver ID" required>
+                                                    <input type="number" class="form-control" name="driver_id" placeholder="Driver ID" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="driver_name">Driver Name</label>
-                                                    <input type="text" class="form-control" name="driver_name"
-                                                        placeholder="Driver Name" required>
+                                                    <input type="text" class="form-control" name="driver_name" placeholder="Driver Name" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="driver_pnum">Driver Phone Number</label>
-                                                    <input type="text" class="form-control" name="driver_pnum"
-                                                        placeholder="Driver Phone Number" required>
+                                                    <input type="text" class="form-control" name="driver_pnum" placeholder="Driver Phone Number" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="rating">Rating</label>
-                                                    <input type="number" step="0.1" class="form-control" name="rating"
-                                                        placeholder="Rating" required>
+                                                    <input type="number" step="0.1" class="form-control" name="rating" placeholder="Rating" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="license_num">License Number</label>
-                                                    <input type="text" class="form-control" name="license_num"
-                                                        placeholder="License Number" required>
+                                                    <input type="text" class="form-control" name="license_num" placeholder="License Number" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="status_id">Status ID</label>
-                                                    <input type="number" class="form-control" name="status_id"
-                                                        placeholder="Status ID" required>
+                                                    <input type="number" class="form-control" name="status_id" placeholder="Status ID" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="rate">Rate</label>
-                                                    <input type="number" class="form-control" name="rate"
-                                                        placeholder="Rate" required>
+                                                    <input type="number" class="form-control" name="rate" placeholder="Rate" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="onleave_rate">On Leave Rate</label>
-                                                    <input type="number" class="form-control" name="onleave_rate"
-                                                        placeholder="On Leave Rate" required>
+                                                    <input type="number" class="form-control" name="onleave_rate" placeholder="On Leave Rate" required>
                                                 </div>
-                                                <button type="submit" name="update_driver" class="btn btn-info">Update
-                                                    Driver</button>
+                                                <button type="submit" name="update_driver" class="btn btn-info">Update Driver</button>
                                             </form>
                                         </div>
 
@@ -431,11 +288,9 @@ oci_execute($rsDriver);
                                             <form method="POST">
                                                 <div class="form-group">
                                                     <label for="driver_id">Driver ID</label>
-                                                    <input type="number" class="form-control" name="driver_id"
-                                                        placeholder="Driver ID" required>
+                                                    <input type="number" class="form-control" name="driver_id" placeholder="Driver ID" required>
                                                 </div>
-                                                <button type="submit" name="delete_driver" class="btn btn-danger">Delete
-                                                    Driver</button>
+                                                <button type="submit" name="delete_driver" class="btn btn-danger">Delete Driver</button>
                                             </form>
                                         </div>
 
@@ -490,5 +345,4 @@ oci_execute($rsDriver);
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.1/dist/js/adminlte.min.js"></script>
 </body>
-
 </html>
