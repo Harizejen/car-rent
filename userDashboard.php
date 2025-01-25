@@ -39,26 +39,76 @@ $rideQuery = "SELECT
              WHERE b.CLIENT_ID = :client_id
              ORDER BY b.BOOKING_DATE DESC";
 
-$stmt = oci_parse($conn, $rideQuery);
-oci_bind_by_name($stmt, ":client_id", $_SESSION['client_id']);
-oci_execute($stmt);
+
+// Use a single statement for rides
+$rideStmt = oci_parse($conn, $rideQuery);
+oci_bind_by_name($rideStmt, ":client_id", $_SESSION['client_id'], -1, SQLT_INT);
+
+if (!oci_execute($rideStmt)) {
+  die("Ride query execution failed: " . oci_error($rideStmt));
+}
 
 $rides = [];
-while ($row = oci_fetch_assoc($stmt)) {
+while ($row = oci_fetch_assoc($rideStmt)) {
   $rides[] = $row;
+}
+
+// Fetch available vehicles (uncommented and fixed)
+$vehicleQuery = "SELECT veh.VEHICLE_ID, veh.VEHICLE_NAME, veh.RATE_PER_DAY 
+                FROM CARRENTAL.VEHICLE veh
+                JOIN CARRENTAL.STATUS sts ON veh.STATUS_ID = sts.STATUS_ID
+                WHERE sts.STATUS_TYPE = 'Available'";
+
+$vehicleStmt = oci_parse($conn, $vehicleQuery);
+if (!$vehicleStmt) {
+  die("Database error: Failed to prepare vehicle query");
+}
+
+if (!oci_execute($vehicleStmt)) {
+  die("Database error: Failed to execute vehicle query");
+}
+
+$vehicles = [];
+while ($row = oci_fetch_assoc($vehicleStmt)) {
+  $vehicles[] = $row;
 }
 
 // Calculate stats
 $totalRides = count($rides);
 $upcomingRides = array_filter($rides, fn($ride) => $ride['STATUS_TYPE'] === 'Booked');
-$averageRatingQuery = "SELECT AVG(f.RATINGVALUE) AS AVG_RATING 
-                       FROM CARRENTAL.FEEDBACKS f
-                       JOIN CARRENTAL.BOOKINGS b ON f.BOOKING_ID = b.BOOKING_ID
-                       WHERE b.CLIENT_ID = :client_id";
-$stmt = oci_parse($conn, $averageRatingQuery);
-oci_bind_by_name($stmt, ":client_id", $_SESSION['client_id']);
-oci_execute($stmt);
-$avgRating = oci_fetch_assoc($stmt)['AVG_RATING'] ?? 0;
+
+// Fetch average rating with proper error handling
+$averageRatingQuery = "SELECT NVL(AVG(f.RATINGVALUE),0) AS AVG_RATING 
+                      FROM CARRENTAL.FEEDBACKS f
+                      WHERE EXISTS (
+                          SELECT 1 FROM CARRENTAL.BOOKINGS b 
+                          WHERE b.BOOKING_ID = f.BOOKING_ID
+                          AND b.CLIENT_ID = :client_id
+                      )";
+
+try {
+  $avgStmt = oci_parse($conn, $averageRatingQuery);
+  if (!$avgStmt) {
+    throw new Exception("Failed to parse average rating query");
+  }
+
+  oci_bind_by_name($avgStmt, ":client_id", $_SESSION['client_id'], -1, SQLT_INT);
+
+  if (!oci_execute($avgStmt)) {
+    throw new Exception("Failed to execute average rating query");
+  }
+
+  $avgRow = oci_fetch_assoc($avgStmt);
+  $avgRating = $avgRow ? round($avgRow['AVG_RATING'], 1) : 0;
+
+} catch (Exception $e) {
+  error_log("Rating Error: " . $e->getMessage());
+  $avgRating = 0;
+} finally {
+  if (isset($avgStmt)) {
+    oci_free_statement($avgStmt);
+  }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -260,54 +310,80 @@ $avgRating = oci_fetch_assoc($stmt)['AVG_RATING'] ?? 0;
       <!-- Content Area -->
       <div class="col-span-3">
         <!-- Book Ride Form -->
+        <!-- Improved Booking Form -->
+        <!-- Simplified Booking Form -->
         <div class="glass-card p-4 mb-4">
           <h4 class="text-xl font-bold mb-4">🚕 Book a Ride</h4>
-          <form action="book_ride.php" method="POST">
+          <form action="./controller/addBooking.php" method="POST" class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-gray-700 font-bold mb-2">Pickup Location</label>
-                <select class="w-full p-2 border rounded" name="pickup_location" required>
-                  <?php
-                  $hubQuery = "SELECT * FROM CARRENTAL.HUB";
-                  $stmt = oci_parse($conn, $hubQuery);
-                  oci_execute($stmt);
-                  while ($hub = oci_fetch_assoc($stmt)): ?>
-                    <option value="<?= $hub['LOCATION_ID'] ?>">
-                      <?= $hub['LOCATION_NAME'] ?>
-                    </option>
-                  <?php endwhile; ?>
-                </select>
+              <!-- Pickup/Dropoff -->
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-gray-700 font-medium mb-2">Pickup Location</label>
+                  <select name="pickup_location" required class="w-full p-2 border rounded-lg">
+                    <?php
+                    $hubQuery = "SELECT * FROM CARRENTAL.HUB";
+                    $hubStmt = oci_parse($conn, $hubQuery);
+                    oci_execute($hubStmt);
+                    while ($hub = oci_fetch_assoc($hubStmt)):
+                      ?>
+                      <option value="<?= $hub['LOCATION_ID'] ?>">
+                        <?= $hub['LOCATION_NAME'] ?>
+                      </option>
+                    <?php endwhile; ?>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-gray-700 font-medium mb-2">Destination</label>
+                  <select name="dropoff_location" required class="w-full p-2 border rounded-lg">
+                    <?php
+                    oci_execute($hubStmt); // Reuse hub query
+                    while ($hub = oci_fetch_assoc($hubStmt)):
+                      ?>
+                      <option value="<?= $hub['LOCATION_ID'] ?>">
+                        <?= $hub['LOCATION_NAME'] ?>
+                      </option>
+                    <?php endwhile;
+                    oci_free_statement($hubStmt);
+                    ?>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label class="block text-gray-700 font-bold mb-2">Destination</label>
-                <select class="w-full p-2 border rounded" name="dropoff_location" required>
-                  <?php
-                  oci_execute($stmt); // Re-use hub query
-                  while ($hub = oci_fetch_assoc($stmt)): ?>
-                    <option value="<?= $hub['LOCATION_ID'] ?>">
-                      <?= $hub['LOCATION_NAME'] ?>
-                    </option>
-                  <?php endwhile; ?>
-                </select>
-              </div>
-              <div>
-                <label class="block text-gray-700 font-bold mb-2">Vehicle Type</label>
-                <select class="w-full p-2 border rounded" name="vehicle_type" required>
-                  <option value="Hatchback">Standard (Myvi)</option>
-                  <option value="Sedan">Premium (Vios)</option>
-                  <option value="SUV">SUV (X70)</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-gray-700 font-bold mb-2">Payment Method</label>
-                <select class="w-full p-2 border rounded" name="payment_method" required>
-                  <option value="Cash">Cash</option>
-                  <option value="Touch 'n Go">Touch 'n Go</option>
-                </select>
+
+              <!-- Vehicle/Date -->
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-gray-700 font-medium mb-2">Vehicle</label>
+                  <select name="vehicle_id" required class="w-full p-2 border rounded-lg">
+                    <?php foreach ($vehicles as $v): ?>
+                      <option value="<?= $v['VEHICLE_ID'] ?>">
+                        <?= $v['VEHICLE_NAME'] ?> -
+                        RM<?= number_format($v['RATE_PER_DAY'], 2) ?>/day
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-gray-700 font-medium mb-2">Pickup Date</label>
+                    <input type="date" name="pickup_date" required min="<?= date('Y-m-d') ?>"
+                      class="w-full p-2 border rounded-lg">
+                  </div>
+
+                  <div>
+                    <label class="block text-gray-700 font-medium mb-2">Return Date</label>
+                    <input type="date" name="return_date" required min="<?= date('Y-m-d', strtotime('+1 day')) ?>"
+                      class="w-full p-2 border rounded-lg">
+                  </div>
+                </div>
               </div>
             </div>
-            <button type="submit" class="btn btn-primary mt-4 w-full">
-              <i class="fas fa-car mr-2"></i> Request Ride
+
+            <button type="submit"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">
+              Confirm Booking
             </button>
           </form>
         </div>
