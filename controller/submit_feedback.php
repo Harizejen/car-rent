@@ -39,9 +39,9 @@ oci_bind_by_name($stmt, ":booking_id", $bookingId);
 oci_bind_by_name($stmt, ":driver_id", $driverId);
 
 if (oci_execute($stmt)) {
-    header("Location: dashboard.php");
+    header("Location: userDashboard.php");
 } else {
-    header("Location: dashboard.php?error=feedback");
+    header("Location: userDashboard.php?error=feedback");
 }
 exit();
 ?>
