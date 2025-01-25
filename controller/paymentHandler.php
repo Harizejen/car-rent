@@ -38,9 +38,8 @@ if (isset($_POST['booking_id'], $_POST['payment_method'], $_POST['amount'])) {
             throw new Exception("Payment amount mismatch");
         }
 
-        // Begin transaction
-        oci_commit($conn); // Reset any previous transaction
-        oci_begin_transaction($conn);
+        // Disable auto-commit to control transactions manually
+        // oci_set_autocommit($conn, false);
 
         // Insert payment
         $payment_sql = "INSERT INTO PAYMENTS (
@@ -55,7 +54,7 @@ if (isset($_POST['booking_id'], $_POST['payment_method'], $_POST['amount'])) {
         oci_bind_by_name($stmt_payment, ":method", $payment_method);
         oci_bind_by_name($stmt_payment, ":amount", $amount);
         oci_bind_by_name($stmt_payment, ":bid", $booking_id);
-
+        oci_execute($stmt_payment); // Transaction starts
         if (!oci_execute($stmt_payment)) {
             $e = oci_error($stmt_payment);
             throw new Exception("Payment failed: " . $e['message']);
@@ -65,23 +64,34 @@ if (isset($_POST['booking_id'], $_POST['payment_method'], $_POST['amount'])) {
         $update_booking_sql = "UPDATE BOOKINGS SET STATUS_ID = 5 WHERE BOOKING_ID = :bid";
         $stmt_booking = oci_parse($conn, $update_booking_sql);
         oci_bind_by_name($stmt_booking, ":bid", $booking_id);
-
+        oci_execute($stmt_booking);
         if (!oci_execute($stmt_booking)) {
             $e = oci_error($stmt_booking);
             throw new Exception("Status update failed: " . $e['message']);
         }
 
-        // Commit transaction
+        // Commit both operations
         oci_commit($conn);
 
-        // Get the new payment ID
-        $stmt = oci_parse($conn, "SELECT PAYMENT_SEQ.CURRVAL FROM DUAL");
-        oci_execute($stmt);
-        $row = oci_fetch_assoc($stmt);
-        $payment_id = $row['CURRVAL'];
+        // Retrieve the generated payment ID from the PAYMENTS table
+        $get_payment_sql = "SELECT PAYMENT_ID 
+                            FROM PAYMENTS 
+                            WHERE BOOKING_ID = :bid 
+                            ORDER BY PAYMENT_ID DESC 
+                            FETCH FIRST 1 ROWS ONLY";
 
+        $stmt_payment_id = oci_parse($conn, $get_payment_sql);
+        oci_bind_by_name($stmt_payment_id, ":bid", $booking_id);
+        oci_execute($stmt_payment_id);
+        $payment_row = oci_fetch_assoc($stmt_payment_id);
+
+        if (!$payment_row) {
+            throw new Exception("Payment successful, but receipt generation failed. Please contact support with Booking ID: $booking_id");
+        }
+
+        $payment_id = $payment_row['PAYMENT_ID'];
         $_SESSION['payment_id'] = $payment_id;
-        header("Location: receipt.php");
+        header("Location: ../receipt.php");
         exit;
 
     } catch (Exception $e) {
@@ -95,3 +105,4 @@ if (isset($_POST['booking_id'], $_POST['payment_method'], $_POST['amount'])) {
     header("Location: ../index.php");
     exit;
 }
+?>
