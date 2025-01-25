@@ -333,11 +333,11 @@ oci_execute($rsDriver);
                                         <!-- Add Driver Tab -->
                                         <div class="tab-pane active" id="add">
                                             <form method="POST">
-                                                <div class="form-group">
+                                                <!-- <div class="form-group">
                                                     <label for="driver_id">Driver ID</label>
                                                     <input type="number" class="form-control" name="driver_id"
                                                         placeholder="Driver ID" required>
-                                                </div>
+                                                </div> -->
                                                 <div class="form-group">
                                                     <label for="driver_name">Driver Name</label>
                                                     <input type="text" class="form-control" name="driver_name"
