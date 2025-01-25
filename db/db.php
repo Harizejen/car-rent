@@ -2,7 +2,8 @@
 
 $host = "localhost:1521/xe"; // Replace with your Oracle service name
 $username = "CARRENTAL"; // Oracle username
-$password = "123456"; // Oracle password
+$password = "system";
+//$password = "123456"; // Oracle password
 
 // Establish connection
 $conn = oci_connect($username, $password, $host);

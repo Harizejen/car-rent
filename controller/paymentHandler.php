@@ -46,7 +46,7 @@ if (isset($_POST['booking_id'], $_POST['payment_method'], $_POST['amount'])) {
                         PAYMENT_ID, PAYMENT_METHOD, PAYMENT_DATE, 
                         AMOUNT, BOOKING_ID
                       ) VALUES (
-                        PAYMENT_SEQ.NEXTVAL, :method, SYSDATE, 
+                        PAYMENTS_SEQ.NEXTVAL, :method, SYSDATE, 
                         :amount, :bid
                       )";
 
