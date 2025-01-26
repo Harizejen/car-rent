@@ -16,7 +16,7 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
 
 if (!isset($_SESSION['client_id'])) {
     $_SESSION['error'] = "You must be logged in to make a booking.";
-    header("Location: ../index.php");
+    header("Location: ../userDashboard.php");
     exit;
 }
 
