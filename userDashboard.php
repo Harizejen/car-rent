@@ -4,6 +4,11 @@ session_start();
 if (!isset($_SESSION['client_id']))
   header("Location: login.php");
 
+// Generate CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // Fetch user data
 $userQuery = "SELECT * FROM CARRENTAL.CLIENTS WHERE CLIENT_ID = :client_id";
 $stmt = oci_parse($conn, $userQuery);
@@ -11,10 +16,20 @@ oci_bind_by_name($stmt, ":client_id", $_SESSION['client_id']);
 oci_execute($stmt);
 $user = oci_fetch_assoc($stmt);
 
+// Fetch hubs
+$hubQuery = "SELECT * FROM CARRENTAL.HUB";
+$hubStmt = oci_parse($conn, $hubQuery);
+oci_execute($hubStmt);
+$hubs = [];
+while ($hub = oci_fetch_assoc($hubStmt)) {
+  $hubs[] = $hub;
+}
+
 // Fetch rides (bookings) with driver and location details
 $rideQuery = "SELECT 
                 b.BOOKING_ID,
                 b.BOOKING_DATE,
+                b.STATUS_ID, 
                 h1.LOCATION_NAME AS PICKUP_LOCATION,
                 h2.LOCATION_NAME AS DROPOFF_LOCATION,
                 v.VEHICLE_NAME,
@@ -22,7 +37,7 @@ $rideQuery = "SELECT
                 d.DRIVER_ID,
                 d.DRIVER_NAME,
                 d.RATING AS DRIVER_RATING,
-                s.STATUS_TYPE,
+                s.STATUS_DESC_TMP AS STATUS_DESC,
                 p.AMOUNT AS FARE,
                 p.PAYMENT_METHOD,
                 f.FEEDBACK_ID,
@@ -54,10 +69,11 @@ while ($row = oci_fetch_assoc($rideStmt)) {
 }
 
 // Fetch available vehicles (uncommented and fixed)
+// Use UPPER() for case-insensitive comparison
 $vehicleQuery = "SELECT veh.VEHICLE_ID, veh.VEHICLE_NAME, veh.RATE_PER_DAY 
                 FROM CARRENTAL.VEHICLE veh
                 JOIN CARRENTAL.STATUS sts ON veh.STATUS_ID = sts.STATUS_ID
-                WHERE sts.STATUS_TYPE = 'Available'";
+                WHERE UPPER(TO_CHAR(sts.STATUS_DESC)) = 'AVAILABLE'";
 
 $vehicleStmt = oci_parse($conn, $vehicleQuery);
 if (!$vehicleStmt) {
@@ -75,7 +91,7 @@ while ($row = oci_fetch_assoc($vehicleStmt)) {
 
 // Calculate stats
 $totalRides = count($rides);
-$upcomingRides = array_filter($rides, fn($ride) => $ride['STATUS_TYPE'] === 'Booked');
+$upcomingRides = array_filter($rides, fn($ride) => $ride['STATUS_DESC'] === 'Booked');
 
 // Fetch average rating with proper error handling
 $averageRatingQuery = "SELECT NVL(AVG(f.RATINGVALUE),0) AS AVG_RATING 
@@ -253,7 +269,7 @@ try {
       <div class="flex items-center">
         <img src="https://storage.googleapis.com/a1aa/image/Ygi0tZpmxqLRA11Xza7WyJ1V8Ng94TgJdCrosDex0n7wJXEKA.jpg"
           class="rounded-full w-12 h-12" alt="Profile">
-        <a href="logout.php" class="btn btn-outline-danger ml-3">Logout</a>
+        <a href="controller/userLogout.php" class="btn btn-outline-danger ml-3">Logout</a>
       </div>
     </div>
 
@@ -310,75 +326,94 @@ try {
       <!-- Content Area -->
       <div class="col-span-3">
         <!-- Book Ride Form -->
-        <!-- Improved Booking Form -->
-        <!-- Simplified Booking Form -->
+
         <div class="glass-card p-4 mb-4">
           <h4 class="text-xl font-bold mb-4">🚕 Book a Ride</h4>
-          <form action="./controller/addBooking.php" method="POST" class="space-y-4">
+
+          <form action="controller/userAddBooking.php" method="POST" class="space-y-4">
+            <!-- CSRF Token -->
+            <input type="hidden" name="csrf_token"
+              value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+
+            <!-- Client Information -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- Pickup/Dropoff -->
-              <div class="space-y-4">
-                <div>
-                  <label class="block text-gray-700 font-medium mb-2">Pickup Location</label>
-                  <select name="pickup_location" required class="w-full p-2 border rounded-lg">
-                    <?php
-                    $hubQuery = "SELECT * FROM CARRENTAL.HUB";
-                    $hubStmt = oci_parse($conn, $hubQuery);
-                    oci_execute($hubStmt);
-                    while ($hub = oci_fetch_assoc($hubStmt)):
-                      ?>
-                      <option value="<?= $hub['LOCATION_ID'] ?>">
-                        <?= $hub['LOCATION_NAME'] ?>
-                      </option>
-                    <?php endwhile; ?>
-                  </select>
-                </div>
-
-                <div>
-                  <label class="block text-gray-700 font-medium mb-2">Destination</label>
-                  <select name="dropoff_location" required class="w-full p-2 border rounded-lg">
-                    <?php
-                    oci_execute($hubStmt); // Reuse hub query
-                    while ($hub = oci_fetch_assoc($hubStmt)):
-                      ?>
-                      <option value="<?= $hub['LOCATION_ID'] ?>">
-                        <?= $hub['LOCATION_NAME'] ?>
-                      </option>
-                    <?php endwhile;
-                    oci_free_statement($hubStmt);
-                    ?>
-                  </select>
-                </div>
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Full Name</label>
+                <input type="text" class="w-full p-2 border rounded-lg"
+                  value="<?= htmlspecialchars($user['CLIENT_NAME']) ?>" disabled>
               </div>
 
-              <!-- Vehicle/Date -->
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Phone Number</label>
+                <input type="tel" name="client_pnum" class="w-full p-2 border rounded-lg" placeholder="012-3456789"
+                  pattern="[0-9]{10,15}" required>
+              </div>
+            </div>
+
+            <!-- Location Selection -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Pickup Location</label>
+                <select name="pickup_location" class="w-full p-2 border rounded-lg" required>
+                  <option value="">Select Pickup</option>
+                  <?php foreach ($hubs as $hub): ?>
+                    <option value="<?= $hub['LOCATION_ID'] ?>">
+                      <?= $hub['LOCATION_NAME'] ?> (<?= $hub['STATE_NAME'] ?>)
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Drop-off Location</label>
+                <select name="dropoff_location" class="w-full p-2 border rounded-lg" required>
+                  <option value="">Select Drop-off</option>
+                  <?php foreach ($hubs as $hub): ?>
+                    <option value="<?= $hub['LOCATION_ID'] ?>">
+                      <?= $hub['LOCATION_NAME'] ?> (<?= $hub['STATE_NAME'] ?>)
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+
+            <!-- Vehicle & Dates -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Select Vehicle</label>
+                <select name="vehicle_id" class="w-full p-2 border rounded-lg" required>
+                  <?php foreach ($vehicles as $v): ?>
+                    <option value="<?= $v['VEHICLE_ID'] ?>">
+                      <?= $v['VEHICLE_NAME'] ?> -
+                      RM<?= number_format($v['RATE_PER_DAY'], 2) ?>/day
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+
               <div class="space-y-4">
                 <div>
-                  <label class="block text-gray-700 font-medium mb-2">Vehicle</label>
-                  <select name="vehicle_id" required class="w-full p-2 border rounded-lg">
-                    <?php foreach ($vehicles as $v): ?>
-                      <option value="<?= $v['VEHICLE_ID'] ?>">
-                        <?= $v['VEHICLE_NAME'] ?> -
-                        RM<?= number_format($v['RATE_PER_DAY'], 2) ?>/day
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
+                  <label class="block text-gray-700 font-medium mb-2">Pickup Date</label>
+                  <input type="date" name="booking_date" class="w-full p-2 border rounded-lg" min="<?= date('Y-m-d') ?>"
+                    required>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-gray-700 font-medium mb-2">Pickup Date</label>
-                    <input type="date" name="pickup_date" required min="<?= date('Y-m-d') ?>"
-                      class="w-full p-2 border rounded-lg">
-                  </div>
-
-                  <div>
-                    <label class="block text-gray-700 font-medium mb-2">Return Date</label>
-                    <input type="date" name="return_date" required min="<?= date('Y-m-d', strtotime('+1 day')) ?>"
-                      class="w-full p-2 border rounded-lg">
-                  </div>
+                <div>
+                  <label class="block text-gray-700 font-medium mb-2">Return Date</label>
+                  <input type="date" name="return_date" class="w-full p-2 border rounded-lg" min="<?= date('Y-m-d') ?>"
+                    required>
                 </div>
               </div>
+            </div>
+
+            <!-- Client Type -->
+            <div class="mb-4">
+              <label class="block text-gray-700 font-medium mb-2">Client Type</label>
+              <select name="client_type" class="w-full p-2 border rounded-lg" required>
+                <option value="individual">Individual</option>
+                <option value="business">Business</option>
+                <option value="family">Family</option>
+              </select>
             </div>
 
             <button type="submit"
@@ -412,13 +447,13 @@ try {
                       (⭐ <?= $ride['DRIVER_RATING'] ?>)
                     </p>
                   </div>
-                  <span class="badge <?= match ($ride['STATUS_TYPE']) {
+                  <span class="badge <?= match ($ride['STATUS_DESC']) {
                     'Completed' => 'bg-green-500',
-                    'Booked' => 'bg-blue-500',
-                    'Payment Pending' => 'bg-yellow-500',
-                    default => 'bg-gray-500'
+                    'Cancelled' => 'bg-gray-500',
+                    'Driver Sent', 'Awaiting driver', 'Pending date' => 'bg-blue-500',
+                    default => 'bg-yellow-500'
                   } ?> text-white px-3 py-1 rounded-full">
-                    <?= $ride['STATUS_TYPE'] ?>
+                    <?= $ride['STATUS_DESC'] ?>
                   </span>
                 </div>
                 <div class="flex justify-between items-center">
@@ -432,7 +467,7 @@ try {
                     </p>
                   </div>
                   <div class="flex gap-2">
-                    <?php if ($ride['STATUS_TYPE'] === 'Completed'): ?>
+                    <?php if ($ride['STATUS_DESC'] === 'Completed'): ?>
                       <?php if (empty($ride['FEEDBACK_ID'])): ?>
                         <button onclick="openModal(<?= $ride['BOOKING_ID'] ?>, <?= $ride['DRIVER_ID'] ?>)"
                           class="btn btn-sm btn-outline-primary">
@@ -445,9 +480,15 @@ try {
                         </div>
                       <?php endif; ?>
                     <?php else: ?>
-                      <button class="btn btn-sm btn-outline-danger">
-                        Cancel
-                      </button>
+                      <?php if (in_array($ride['STATUS_ID'], [10, 11, 12])): ?>
+                        <form method="POST" action="controller/cancel_booking.php" onsubmit="return confirm('Are you sure?')">
+                          <input type="hidden" name="booking_id" value="<?= $ride['BOOKING_ID'] ?>">
+                          <input type="hidden" name="csrf_token" value="<?= $_SESSION['dashboard_csrf_token'] ?>">
+                          <button type="submit" name="cancel_booking" class="btn btn-sm btn-outline-danger">
+                            Cancel
+                          </button>
+                        </form>
+                      <?php endif; ?>
                     <?php endif; ?>
                   </div>
                 </div>

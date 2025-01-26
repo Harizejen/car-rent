@@ -33,7 +33,7 @@ try {
             $_SESSION['client_id'] = $user['CLIENT_ID'];
             $_SESSION['client_name'] = $user['CLIENT_NAME'];
             session_regenerate_id(true);
-            header("Location: ../index.php");
+            header("Location: ../userDashboard.php");
             exit;
         } else {
             throw new Exception("Invalid credentials");
