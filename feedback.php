@@ -194,9 +194,9 @@ oci_execute($rsFeedback);
                                         <!-- <li class="nav-item">
                                             <a class="nav-link active" href="#add" data-toggle="tab">Add Feedback</a>
                                         </li> -->
-                                        <li class="nav-item">
+                                        <!-- <li class="nav-item">
                                             <a class="nav-link" href="#update" data-toggle="tab">Update Feedback</a>
-                                        </li>
+                                        </li> -->
                                         <li class="nav-item">
                                             <a class="nav-link" href="#delete" data-toggle="tab">Delete Feedback</a>
                                         </li>
@@ -235,7 +235,7 @@ oci_execute($rsFeedback);
                                         </div> -->
 
                                         <!-- Update Feedback Tab -->
-                                        <div class="tab-pane" id="update">
+                                        <!-- <div class="tab-pane" id="update">
                                             <form method="POST">
                                                 <div class="form-group">
                                                     <label for="feedback_id">Feedback ID</label>
@@ -259,7 +259,7 @@ oci_execute($rsFeedback);
                                                 </div>
                                                 <button type="submit" name="update_feedback" class="btn btn-info">Update Feedback</button>
                                             </form>
-                                        </div>
+                                        </div> -->
 
                                         <!-- Delete Feedback Tab -->
                                         <div class="tab-pane" id="delete">
