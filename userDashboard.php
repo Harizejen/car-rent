@@ -330,7 +330,7 @@ try {
         <div class="glass-card p-4 mb-4">
           <h4 class="text-xl font-bold mb-4">🚕 Book a Ride</h4>
 
-          <form action="controller/userAddBooking.php" method="POST" class="space-y-4">
+          <form id="bookingForm" action="controller/userAddBooking.php" method="POST" class="space-y-4">
             <!-- CSRF Token -->
             <input type="hidden" name="csrf_token"
               value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
@@ -416,7 +416,7 @@ try {
               </select>
             </div>
 
-            <button type="submit"
+            <button type="submit" name="booking"
               class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">
               Confirm Booking
             </button>
