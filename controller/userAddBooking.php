@@ -145,12 +145,12 @@ if (isset($_POST['booking'])) {
     } catch (Exception $e) {
         error_log("Booking Error: " . $e->getMessage());
         $_SESSION['error'] = $e->getMessage();
-        header("Location: ../index.php");
+        header("Location: ../userDashboard.php");
         exit;
     }
 } else {
     $_SESSION['error'] = "Invalid request method";
-    header("Location: ../index.php");
+    header("Location: ../userDashboard.php");
     exit;
 }
 ?>

@@ -4,12 +4,26 @@ session_start();
 if (!isset($_SESSION['client_id']))
   header("Location: login.php");
 
+// CSRF Protection for Dashboard
+if (empty($_SESSION['dashboard_csrf_token'])) {
+  $_SESSION['dashboard_csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // Fetch user data
 $userQuery = "SELECT * FROM CARRENTAL.CLIENTS WHERE CLIENT_ID = :client_id";
 $stmt = oci_parse($conn, $userQuery);
 oci_bind_by_name($stmt, ":client_id", $_SESSION['client_id']);
 oci_execute($stmt);
 $user = oci_fetch_assoc($stmt);
+
+// Fetch hubs
+$hubQuery = "SELECT * FROM CARRENTAL.HUB";
+$hubStmt = oci_parse($conn, $hubQuery);
+oci_execute($hubStmt);
+$hubs = [];
+while ($hub = oci_fetch_assoc($hubStmt)) {
+  $hubs[] = $hub;
+}
 
 // Fetch rides (bookings) with driver and location details
 $rideQuery = "SELECT 
@@ -310,75 +324,94 @@ try {
       <!-- Content Area -->
       <div class="col-span-3">
         <!-- Book Ride Form -->
-        <!-- Improved Booking Form -->
-        <!-- Simplified Booking Form -->
+        
         <div class="glass-card p-4 mb-4">
           <h4 class="text-xl font-bold mb-4">🚕 Book a Ride</h4>
-          <form action="./controller/addBooking.php" method="POST" class="space-y-4">
+
+          <form action="controller/userAddBooking.php" method="POST" class="space-y-4">
+ <!-- CSRF Token -->
+ <input type="hidden" name="csrf_token" value="<?= $_SESSION['dashboard_csrf_token'] 
+ ?>">
+
+            <!-- Client Information -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- Pickup/Dropoff -->
-              <div class="space-y-4">
-                <div>
-                  <label class="block text-gray-700 font-medium mb-2">Pickup Location</label>
-                  <select name="pickup_location" required class="w-full p-2 border rounded-lg">
-                    <?php
-                    $hubQuery = "SELECT * FROM CARRENTAL.HUB";
-                    $hubStmt = oci_parse($conn, $hubQuery);
-                    oci_execute($hubStmt);
-                    while ($hub = oci_fetch_assoc($hubStmt)):
-                      ?>
-                      <option value="<?= $hub['LOCATION_ID'] ?>">
-                        <?= $hub['LOCATION_NAME'] ?>
-                      </option>
-                    <?php endwhile; ?>
-                  </select>
-                </div>
-
-                <div>
-                  <label class="block text-gray-700 font-medium mb-2">Destination</label>
-                  <select name="dropoff_location" required class="w-full p-2 border rounded-lg">
-                    <?php
-                    oci_execute($hubStmt); // Reuse hub query
-                    while ($hub = oci_fetch_assoc($hubStmt)):
-                      ?>
-                      <option value="<?= $hub['LOCATION_ID'] ?>">
-                        <?= $hub['LOCATION_NAME'] ?>
-                      </option>
-                    <?php endwhile;
-                    oci_free_statement($hubStmt);
-                    ?>
-                  </select>
-                </div>
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Full Name</label>
+                <input type="text" class="w-full p-2 border rounded-lg"
+                  value="<?= htmlspecialchars($user['CLIENT_NAME']) ?>" disabled>
               </div>
 
-              <!-- Vehicle/Date -->
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Phone Number</label>
+                <input type="tel" name="client_pnum" class="w-full p-2 border rounded-lg" placeholder="012-3456789"
+                  pattern="[0-9]{10,15}" required>
+              </div>
+            </div>
+
+            <!-- Location Selection -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Pickup Location</label>
+                <select name="pickup_location" class="w-full p-2 border rounded-lg" required>
+                  <option value="">Select Pickup</option>
+                  <?php foreach ($hubs as $hub): ?>
+                    <option value="<?= $hub['LOCATION_ID'] ?>">
+                      <?= $hub['LOCATION_NAME'] ?> (<?= $hub['STATE_NAME'] ?>)
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Drop-off Location</label>
+                <select name="dropoff_location" class="w-full p-2 border rounded-lg" required>
+                  <option value="">Select Drop-off</option>
+                  <?php foreach ($hubs as $hub): ?>
+                    <option value="<?= $hub['LOCATION_ID'] ?>">
+                      <?= $hub['LOCATION_NAME'] ?> (<?= $hub['STATE_NAME'] ?>)
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+
+            <!-- Vehicle & Dates -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-gray-700 font-medium mb-2">Select Vehicle</label>
+                <select name="vehicle_id" class="w-full p-2 border rounded-lg" required>
+                  <?php foreach ($vehicles as $v): ?>
+                    <option value="<?= $v['VEHICLE_ID'] ?>">
+                      <?= $v['VEHICLE_NAME'] ?> -
+                      RM<?= number_format($v['RATE_PER_DAY'], 2) ?>/day
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+
               <div class="space-y-4">
                 <div>
-                  <label class="block text-gray-700 font-medium mb-2">Vehicle</label>
-                  <select name="vehicle_id" required class="w-full p-2 border rounded-lg">
-                    <?php foreach ($vehicles as $v): ?>
-                      <option value="<?= $v['VEHICLE_ID'] ?>">
-                        <?= $v['VEHICLE_NAME'] ?> -
-                        RM<?= number_format($v['RATE_PER_DAY'], 2) ?>/day
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
+                  <label class="block text-gray-700 font-medium mb-2">Pickup Date</label>
+                  <input type="date" name="booking_date" class="w-full p-2 border rounded-lg" min="<?= date('Y-m-d') ?>"
+                    required>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-gray-700 font-medium mb-2">Pickup Date</label>
-                    <input type="date" name="pickup_date" required min="<?= date('Y-m-d') ?>"
-                      class="w-full p-2 border rounded-lg">
-                  </div>
-
-                  <div>
-                    <label class="block text-gray-700 font-medium mb-2">Return Date</label>
-                    <input type="date" name="return_date" required min="<?= date('Y-m-d', strtotime('+1 day')) ?>"
-                      class="w-full p-2 border rounded-lg">
-                  </div>
+                <div>
+                  <label class="block text-gray-700 font-medium mb-2">Return Date</label>
+                  <input type="date" name="return_date" class="w-full p-2 border rounded-lg" min="<?= date('Y-m-d') ?>"
+                    required>
                 </div>
               </div>
+            </div>
+
+            <!-- Client Type -->
+            <div class="mb-4">
+              <label class="block text-gray-700 font-medium mb-2">Client Type</label>
+              <select name="client_type" class="w-full p-2 border rounded-lg" required>
+                <option value="individual">Individual</option>
+                <option value="business">Business</option>
+                <option value="family">Family</option>
+              </select>
             </div>
 
             <button type="submit"
