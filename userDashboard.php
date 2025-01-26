@@ -4,9 +4,9 @@ session_start();
 if (!isset($_SESSION['client_id']))
   header("Location: login.php");
 
-// CSRF Protection for Dashboard
-if (empty($_SESSION['dashboard_csrf_token'])) {
-  $_SESSION['dashboard_csrf_token'] = bin2hex(random_bytes(32));
+// Generate CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 // Fetch user data
@@ -29,6 +29,7 @@ while ($hub = oci_fetch_assoc($hubStmt)) {
 $rideQuery = "SELECT 
                 b.BOOKING_ID,
                 b.BOOKING_DATE,
+                b.STATUS_ID, 
                 h1.LOCATION_NAME AS PICKUP_LOCATION,
                 h2.LOCATION_NAME AS DROPOFF_LOCATION,
                 v.VEHICLE_NAME,
@@ -36,7 +37,7 @@ $rideQuery = "SELECT
                 d.DRIVER_ID,
                 d.DRIVER_NAME,
                 d.RATING AS DRIVER_RATING,
-                s.STATUS_TYPE,
+                s.STATUS_DESC_TMP AS STATUS_DESC,
                 p.AMOUNT AS FARE,
                 p.PAYMENT_METHOD,
                 f.FEEDBACK_ID,
@@ -68,6 +69,7 @@ while ($row = oci_fetch_assoc($rideStmt)) {
 }
 
 // Fetch available vehicles (uncommented and fixed)
+// Use UPPER() for case-insensitive comparison
 $vehicleQuery = "SELECT veh.VEHICLE_ID, veh.VEHICLE_NAME, veh.RATE_PER_DAY 
                 FROM CARRENTAL.VEHICLE veh
                 JOIN CARRENTAL.STATUS sts ON veh.STATUS_ID = sts.STATUS_ID
@@ -90,7 +92,7 @@ while ($row = oci_fetch_assoc($vehicleStmt)) {
 
 // Calculate stats
 $totalRides = count($rides);
-$upcomingRides = array_filter($rides, fn($ride) => $ride['STATUS_TYPE'] === 'Booked');
+$upcomingRides = array_filter($rides, fn($ride) => $ride['STATUS_DESC'] === 'Booked');
 
 // Fetch average rating with proper error handling
 $averageRatingQuery = "SELECT NVL(AVG(f.RATINGVALUE),0) AS AVG_RATING 
@@ -268,7 +270,7 @@ try {
       <div class="flex items-center">
         <img src="https://storage.googleapis.com/a1aa/image/Ygi0tZpmxqLRA11Xza7WyJ1V8Ng94TgJdCrosDex0n7wJXEKA.jpg"
           class="rounded-full w-12 h-12" alt="Profile">
-        <a href="logout.php" class="btn btn-outline-danger ml-3">Logout</a>
+        <a href="controller/userLogout.php" class="btn btn-outline-danger ml-3">Logout</a>
       </div>
     </div>
 
@@ -316,8 +318,7 @@ try {
         <div class="dashboard-nav">
           <nav class="flex flex-col">
             <a class="nav-link active" href="#"><i class="fas fa-home mr-2"></i> Dashboard</a>
-            <a class="nav-link" href="#"><i class="fas fa-history mr-2"></i> Ride History</a>
-            <a class="nav-link" href="#"><i class="fas fa-wallet mr-2"></i> Wallet</a>
+            <a class="nav-link" href="#ride-history"><i class="fas fa-history mr-2"></i> Ride History</a>
           </nav>
         </div>
       </div>
@@ -325,14 +326,14 @@ try {
       <!-- Content Area -->
       <div class="col-span-3">
         <!-- Book Ride Form -->
-        
+
         <div class="glass-card p-4 mb-4">
           <h4 class="text-xl font-bold mb-4">🚕 Book a Ride</h4>
 
-          <form action="controller/userAddBooking.php" method="POST" class="space-y-4">
- <!-- CSRF Token -->
- <input type="hidden" name="csrf_token" value="<?= $_SESSION['dashboard_csrf_token'] 
- ?>">
+          <form id="bookingForm" action="controller/userAddBooking.php" method="POST" class="space-y-4">
+            <!-- CSRF Token -->
+            <input type="hidden" name="csrf_token"
+              value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
 
             <!-- Client Information -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -415,7 +416,7 @@ try {
               </select>
             </div>
 
-            <button type="submit"
+            <button type="submit" name="booking"
               class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">
               Confirm Booking
             </button>
@@ -423,7 +424,7 @@ try {
         </div>
 
         <!-- Ride History -->
-        <div class="glass-card p-4">
+        <div class="glass-card p-4" name="ride-history" id="ride-history">
           <h4 class="text-xl font-bold mb-4">📝 Ride History</h4>
           <div class="grid grid-cols-1 gap-4">
             <?php foreach ($rides as $ride): ?>
@@ -446,13 +447,13 @@ try {
                       (⭐ <?= $ride['DRIVER_RATING'] ?>)
                     </p>
                   </div>
-                  <span class="badge <?= match ($ride['STATUS_TYPE']) {
+                  <span class="badge <?= match ($ride['STATUS_DESC']) {
                     'Completed' => 'bg-green-500',
-                    'Booked' => 'bg-blue-500',
-                    'Payment Pending' => 'bg-yellow-500',
-                    default => 'bg-gray-500'
+                    'Cancelled' => 'bg-gray-500',
+                    'Driver Sent', 'Awaiting driver', 'Pending date' => 'bg-blue-500',
+                    default => 'bg-yellow-500'
                   } ?> text-white px-3 py-1 rounded-full">
-                    <?= $ride['STATUS_TYPE'] ?>
+                    <?= $ride['STATUS_DESC'] ?>
                   </span>
                 </div>
                 <div class="flex justify-between items-center">
@@ -466,7 +467,7 @@ try {
                     </p>
                   </div>
                   <div class="flex gap-2">
-                    <?php if ($ride['STATUS_TYPE'] === 'Completed'): ?>
+                    <?php if ($ride['STATUS_DESC'] === 'Completed'): ?>
                       <?php if (empty($ride['FEEDBACK_ID'])): ?>
                         <button onclick="openModal(<?= $ride['BOOKING_ID'] ?>, <?= $ride['DRIVER_ID'] ?>)"
                           class="btn btn-sm btn-outline-primary">
@@ -479,9 +480,15 @@ try {
                         </div>
                       <?php endif; ?>
                     <?php else: ?>
-                      <button class="btn btn-sm btn-outline-danger">
-                        Cancel
-                      </button>
+                      <?php if (in_array($ride['STATUS_ID'], [10, 11, 12])): ?>
+                        <form method="POST" action="controller/cancel_booking.php" onsubmit="return confirm('Are you sure?')">
+                          <input type="hidden" name="booking_id" value="<?= $ride['BOOKING_ID'] ?>">
+                          <input type="hidden" name="csrf_token" value="<?= $_SESSION['dashboard_csrf_token'] ?>">
+                          <button type="submit" name="cancel_booking" class="btn btn-sm btn-outline-danger">
+                            Cancel
+                          </button>
+                        </form>
+                      <?php endif; ?>
                     <?php endif; ?>
                   </div>
                 </div>

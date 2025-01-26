@@ -6,54 +6,14 @@ session_start([
     'cookie_samesite' => 'Lax'
 ]);
 
-include '../db/db.php';
+include 'db/db.php';
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Generate CSRF token for login form
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    if (empty($_SESSION['login_csrf_token'])) {
-        $_SESSION['login_csrf_token'] = bin2hex(random_bytes(32));
-    }
+// Generate CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
-
-try {
-    // CSRF validation
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['login_csrf_token']) {
-        throw new Exception("Security validation failed");
-    }
-
-    if (empty($_POST['email']) || empty($_POST['password'])) {
-        throw new Exception("Email and password are required");
-    }
-
-    $query = "SELECT CLIENT_ID, CLIENT_NAME, PASSWORD 
-            FROM CARRENTAL.CLIENTS 
-            WHERE EMAIL = :email";
-
-    $stmt = oci_parse($conn, $query);
-    oci_bind_by_name($stmt, ":email", $_POST['email']);
-    oci_execute($stmt);
-
-    if ($user = oci_fetch_assoc($stmt)) {
-        if (password_verify($_POST['password'], $user['PASSWORD'])) {
-            session_regenerate_id(true);
-            $_SESSION['client_id'] = $user['CLIENT_ID'];
-            $_SESSION['client_name'] = $user['CLIENT_NAME'];
-            header("Location: ../index.php");
-            exit;
-        } else {
-            throw new Exception("Invalid email or password");
-        }
-    } else {
-        throw new Exception("Invalid email or password");
-    }
-} catch (Exception $e) {
-    $_SESSION['error'] = $e->getMessage();
-    header("Location: login.php"); // Update with your login page path
-    exit;
-}
-
 
 ?>
 <!DOCTYPE html>
@@ -150,8 +110,9 @@ try {
               <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
 
-            <form method="POST">
-              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['login_csrf_token']) ?>">
+            <form action="controller/userLogin.php" method="POST">
+            <input type="hidden" name="csrf_token"
+            value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
               <!-- Rest of the form remains the same -->
               <div class="mb-4">
                 <label class="form-label">Email</label>

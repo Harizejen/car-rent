@@ -48,19 +48,21 @@ if (isset($_POST['booking_id'], $_POST['payment_method'], $_POST['amount'])) {
                       ) VALUES (
                         PAYMENTS_SEQ.NEXTVAL, :method, SYSDATE, 
                         :amount, :bid
-                      )";
+                      )
+                      RETURNING PAYMENT_ID INTO :payment_id";
 
         $stmt_payment = oci_parse($conn, $payment_sql);
         oci_bind_by_name($stmt_payment, ":method", $payment_method);
         oci_bind_by_name($stmt_payment, ":amount", $amount);
         oci_bind_by_name($stmt_payment, ":bid", $booking_id);
+        oci_bind_by_name($stmt_payment, ":payment_id", $payment_id, -1, SQLT_INT);
         oci_execute($stmt_payment); // Transaction starts
         if (!oci_execute($stmt_payment)) {
             $e = oci_error($stmt_payment);
             throw new Exception("Payment failed: " . $e['message']);
         }
 
-        // Update booking status to "Paid" (STATUS_ID = 5)
+        // Update booking status to "Paid" (STATUS_ID = 8)
         $update_booking_sql = "UPDATE BOOKINGS SET STATUS_ID = 8 WHERE BOOKING_ID = :bid";
         $stmt_booking = oci_parse($conn, $update_booking_sql);
         oci_bind_by_name($stmt_booking, ":bid", $booking_id);
@@ -73,23 +75,6 @@ if (isset($_POST['booking_id'], $_POST['payment_method'], $_POST['amount'])) {
         // Commit both operations
         oci_commit($conn);
 
-        // Retrieve the generated payment ID from the PAYMENTS table
-        $get_payment_sql = "SELECT PAYMENT_ID 
-                            FROM PAYMENTS 
-                            WHERE BOOKING_ID = :bid 
-                            ORDER BY PAYMENT_ID DESC 
-                            FETCH FIRST 1 ROWS ONLY";
-
-        $stmt_payment_id = oci_parse($conn, $get_payment_sql);
-        oci_bind_by_name($stmt_payment_id, ":bid", $booking_id);
-        oci_execute($stmt_payment_id);
-        $payment_row = oci_fetch_assoc($stmt_payment_id);
-
-        if (!$payment_row) {
-            throw new Exception("Payment successful, but receipt generation failed. Please contact support with Booking ID: $booking_id");
-        }
-
-        $payment_id = $payment_row['PAYMENT_ID'];
         $_SESSION['payment_id'] = $payment_id;
         header("Location: ../receipt.php");
         exit;
@@ -101,8 +86,10 @@ if (isset($_POST['booking_id'], $_POST['payment_method'], $_POST['amount'])) {
         exit;
     }
 } else {
-    $_SESSION['error'] = "Invalid request";
-    header("Location: ../index.php");
+    // Log detailed error
+    error_log("Receipt Error [Booking ID: $booking_id]: " . $e->getMessage());
+    $_SESSION['error'] = $e->getMessage();
+    header("Location: ../paymentPage.php?booking_id=" . $booking_id);
     exit;
 }
 ?>

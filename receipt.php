@@ -5,7 +5,7 @@ session_start([
     'cookie_httponly' => true,
     'cookie_samesite' => 'Lax'
 ]);
-require_once '../db/db.php';
+require_once 'db/db.php';
 
 if (!isset($_SESSION['client_id']) || !isset($_SESSION['payment_id'])) {
     $_SESSION['error'] = "Invalid receipt access";
@@ -38,27 +38,53 @@ try {
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Payment Receipt</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
 <body>
-    <h1>Payment Confirmation</h1>
-    <?php if (isset($_SESSION['error'])): ?>
-        <div class="error"><?= $_SESSION['error'];
-        unset($_SESSION['error']); ?></div>
-    <?php endif; ?>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-header text-center bg-success text-white">
+                        <h1>Payment Confirmation</h1>
+                    </div>
+                    <div class="card-body">
+                        <!-- Error Message -->
+                        <?php if (isset($_SESSION['error'])): ?>
+                            <div class="alert alert-danger text-center">
+                                <?= htmlspecialchars($_SESSION['error']); ?>
+                                <?php unset($_SESSION['error']); ?>
+                            </div>
+                        <?php endif; ?>
 
-    <h2>Receipt #<?= $payment['PAYMENT_ID'] ?></h2>
-    <p>Payment Date: <?= date('Y-m-d H:i', strtotime($payment['PAYMENT_DATE'])) ?></p>
-    <p>Amount Paid: $<?= number_format($payment['AMOUNT'], 2) ?></p>
-    <p>Payment Method: <?= htmlspecialchars($payment['PAYMENT_METHOD']) ?></p>
-    <p>Booking Period: <?= $payment['DURATION'] ?> days</p>
-    <p>Booking Date: <?= $payment['BOOKING_DATE'] ?></p>
+                        <!-- Receipt Details -->
+                        <h2 class="text-center mb-4">Receipt #<?= htmlspecialchars($payment['PAYMENT_ID']) ?></h2>
+                        <p><strong>Payment Date:</strong> <?= date('Y-m-d H:i', strtotime($payment['PAYMENT_DATE'])) ?>
+                        </p>
+                        <p><strong>Amount Paid:</strong> RM<?= number_format($payment['AMOUNT'], 2) ?></p>
+                        <p><strong>Payment Method:</strong> <?= htmlspecialchars($payment['PAYMENT_METHOD']) ?></p>
+                        <p><strong>Booking Period:</strong> <?= htmlspecialchars($payment['DURATION']) ?> days</p>
+                        <p><strong>Booking Date:</strong> <?= htmlspecialchars($payment['BOOKING_DATE']) ?></p>
 
-    <p><a href="../index.php">Return to Dashboard</a></p>
+                        <div class="text-center mt-4">
+                            <a href="userDashboard.php" class="btn btn-primary">Return to Dashboard</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>
