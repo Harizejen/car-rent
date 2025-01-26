@@ -134,7 +134,7 @@
             echo '<div class="error-message">Invalid username or password.</div>';
         }
         ?>
-        <form action="login.php" method="post" onsubmit="return validateLogin()">
+        <form action="loginAdmin.php" method="post" onsubmit="return validateLogin()">
             <!-- Username Field with Icon -->
             <div class="input-group">
                 <i class="fas fa-user"></i>

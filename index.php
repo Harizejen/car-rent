@@ -164,6 +164,8 @@ error_log("Fetched hubs: " . count($hubs));
                         <a href="contact.php" class="nav-item nav-link">Contact</a>
                     </div>
                     <a href="CRUD.php" class="btn btn-primary rounded-pill py-2 px-4">Manage Bookings</a>
+                    <a href="adminLogin.php" class="btn btn-primary rounded-pill py-2 px-4">Admin</a>
+
                 </div>
             </nav>
         </div>

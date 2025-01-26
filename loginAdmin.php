@@ -23,7 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($row && password_verify($password, $row['PASSWORD_HASH'])) {
         // Login successful
         $_SESSION['admin_id'] = $row['ADMIN_ID'];
-        header("Location: dashboard.php");
+        header("Location: dashboard.php?#");
         exit();
     } else {
         // Login failed
