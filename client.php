@@ -66,7 +66,7 @@ if (isset($_POST['delete_client'])) {
 // Query to fetch clients
 $sql = "SELECT CLIENT_ID, CLIENT_NAME, CLIENT_PNUM, CLIENT_TYPE FROM CLIENTS";
 $rsClient = oci_parse($conn, $sql);
-oci_execute($rsClient);
+oci_execute($rsClient); // Execute the query for the first time
 ?>
 
 <!DOCTYPE html>
@@ -159,6 +159,12 @@ oci_execute($rsClient);
                                 <p>Feedbacks</p>
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a href="logoutAdmin.php" class="nav-link">
+                                <i class="nav-icon fas fa-sign-out-alt"></i>
+                                <p>Logout</p>
+                            </a>
+                        </li>
                     </ul>
                 </nav>
             </div>
@@ -186,9 +192,6 @@ oci_execute($rsClient);
                             <div class="card">
                                 <div class="card-header p-2">
                                     <ul class="nav nav-pills">
-                                        <!-- <li class="nav-item">
-                                            <a class="nav-link active" href="#add" data-toggle="tab">Add Client</a>
-                                        </li> -->
                                         <li class="nav-item">
                                             <a class="nav-link" href="#update" data-toggle="tab">Update Client</a>
                                         </li>
@@ -202,47 +205,32 @@ oci_execute($rsClient);
                                 </div>
                                 <div class="card-body">
                                     <div class="tab-content">
-                                        <!-- Add Client Tab -->
-                                        <!-- <div class="tab-pane active" id="add">
-                                            <form method="POST">
-                                                <div class="form-group">
-                                                    <label for="client_id">Client ID</label>
-                                                    <input type="number" class="form-control" name="client_id" placeholder="Client ID" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="client_name">Client Name</label>
-                                                    <input type="text" class="form-control" name="client_name" placeholder="Client Name" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="client_pnum">Client Phone Number</label>
-                                                    <input type="text" class="form-control" name="client_pnum" placeholder="Client Phone Number" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="client_type">Client Type</label>
-                                                    <input type="text" class="form-control" name="client_type" placeholder="Client Type" required>
-                                                </div>
-                                                <button type="submit" name="add_client" class="btn btn-primary">Add Client</button>
-                                            </form>
-                                        </div> -->
-
                                         <!-- Update Client Tab -->
                                         <div class="tab-pane" id="update">
                                             <form method="POST">
                                                 <div class="form-group">
                                                     <label for="client_id">Client ID</label>
-                                                    <input type="number" class="form-control" name="client_id" placeholder="Client ID" required>
+                                                    <select class="form-control" id="client_id" name="client_id" required>
+                                                        <option value="">Select Client ID</option>
+                                                        <?php 
+                                                        // Reset the result set pointer
+                                                        oci_execute($rsClient);
+                                                        while ($row = oci_fetch_assoc($rsClient)): ?>
+                                                            <option value="<?php echo $row['CLIENT_ID']; ?>"><?php echo $row['CLIENT_ID']; ?></option>
+                                                        <?php endwhile; ?>
+                                                    </select>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="client_name">Client Name</label>
-                                                    <input type="text" class="form-control" name="client_name" placeholder="Client Name" required>
+                                                    <input type="text" class="form-control" id="client_name" name="client_name" placeholder="Client Name" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="client_pnum">Client Phone Number</label>
-                                                    <input type="text" class="form-control" name="client_pnum" placeholder="Client Phone Number" required>
+                                                    <input type="text" class="form-control" id="client_pnum" name="client_pnum" placeholder="Client Phone Number" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="client_type">Client Type</label>
-                                                    <input type="text" class="form-control" name="client_type" placeholder="Client Type" required>
+                                                    <input type="text" class="form-control" id="client_type" name="client_type" placeholder="Client Type" required>
                                                 </div>
                                                 <button type="submit" name="update_client" class="btn btn-info">Update Client</button>
                                             </form>
@@ -271,7 +259,10 @@ oci_execute($rsClient);
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    <?php while ($row = oci_fetch_assoc($rsClient)): ?>
+                                                    <?php 
+                                                    // Reset the result set pointer before fetching data for the table
+                                                    oci_execute($rsClient);
+                                                    while ($row = oci_fetch_assoc($rsClient)): ?>
                                                         <tr>
                                                             <td><?php echo $row['CLIENT_ID']; ?></td>
                                                             <td><?php echo $row['CLIENT_NAME']; ?></td>
@@ -301,5 +292,38 @@ oci_execute($rsClient);
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.1/dist/js/adminlte.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#client_id').change(function() {
+                var clientId = $(this).val();
+                if (clientId) {
+                    $.ajax({
+                        url: 'get_client_details.php', // PHP script to fetch client details
+                        type: 'POST',
+                        data: { client_id: clientId },
+                        success: function(response) {
+                            var clientDetails = JSON.parse(response);
+                            if (clientDetails) {
+                                // Populate the form fields with the fetched data
+                                $('#client_name').val(clientDetails.CLIENT_NAME);
+                                $('#client_pnum').val(clientDetails.CLIENT_PNUM);
+                                $('#client_type').val(clientDetails.CLIENT_TYPE);
+                            } else {
+                                // Clear the fields if no data is found
+                                $('#client_name').val('');
+                                $('#client_pnum').val('');
+                                $('#client_type').val('');
+                            }
+                        }
+                    });
+                } else {
+                    // Clear the fields if no client is selected
+                    $('#client_name').val('');
+                    $('#client_pnum').val('');
+                    $('#client_type').val('');
+                }
+            });
+        });
+    </script>
 </body>
 </html>

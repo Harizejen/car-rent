@@ -86,12 +86,11 @@ if (isset($_POST['delete_booking'])) {
 // Query to fetch bookings
 $sql = "SELECT BOOKING_ID, BOOKING_DATE, PICKUP_LOCATION_ID, DROPOFF_LOCATION_ID, CLIENT_ID, VEHICLE_ID, STATUS_ID, DURATION FROM BOOKINGS";
 $rsBook = oci_parse($conn, $sql);
-oci_execute($rsBook);
+oci_execute($rsBook); // Execute the query for the first time
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -100,11 +99,10 @@ oci_execute($rsBook);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
-
 <body class="hold-transition sidebar-mini">
     <div class="wrapper">
-        <!-- Navbar -->
-        <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+       <!-- Navbar -->
+       <nav class="main-header navbar navbar-expand navbar-white navbar-light">
             <!-- Left navbar links -->
             <ul class="navbar-nav">
                 <li class="nav-item">
@@ -182,6 +180,12 @@ oci_execute($rsBook);
                                 <p>Feedbacks</p>
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a href="logoutAdmin.php" class="nav-link">
+                                <i class="nav-icon fas fa-sign-out-alt"></i>
+                                <p>Logout</p>
+                            </a>
+                        </li>
                     </ul>
                 </nav>
             </div>
@@ -209,9 +213,6 @@ oci_execute($rsBook);
                             <div class="card">
                                 <div class="card-header p-2">
                                     <ul class="nav nav-pills">
-                                        <!-- <li class="nav-item">
-                                            <a class="nav-link active" href="#add" data-toggle="tab">Add Booking</a>
-                                        </li> -->
                                         <li class="nav-item">
                                             <a class="nav-link" href="#update" data-toggle="tab">Update Booking</a>
                                         </li>
@@ -225,99 +226,50 @@ oci_execute($rsBook);
                                 </div>
                                 <div class="card-body">
                                     <div class="tab-content">
-                                        <!-- Add Booking Tab -->
-                                        <!-- <div class="tab-pane active" id="add">
-                                            <form method="POST">
-                                                <div class="form-group">
-                                                    <label for="booking_id">Booking ID</label>
-                                                    <input type="number" class="form-control" name="booking_id"
-                                                        placeholder="Booking ID" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="booking_date">Booking Date</label>
-                                                    <input type="text" class="form-control" name="booking_date"
-                                                        placeholder="Booking Date (DD/MM/YYYY)" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="pickup_location_id">Pickup Location ID</label>
-                                                    <input type="number" class="form-control" name="pickup_location_id"
-                                                        placeholder="Pickup Location ID" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="dropoff_location_id">Dropoff Location ID</label>
-                                                    <input type="number" class="form-control" name="dropoff_location_id"
-                                                        placeholder="Dropoff Location ID" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="client_id">Client ID</label>
-                                                    <input type="number" class="form-control" name="client_id"
-                                                        placeholder="Client ID" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="vehicle_id">Vehicle ID</label>
-                                                    <input type="number" class="form-control" name="vehicle_id"
-                                                        placeholder="Vehicle ID" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="status_id">Status ID</label>
-                                                    <input type="number" class="form-control" name="status_id"
-                                                        placeholder="Status ID" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="duration">Duration</label>
-                                                    <input type="number" class="form-control" name="duration"
-                                                        placeholder="Duration" required>
-                                                </div>
-                                                <button type="submit" name="add_booking" class="btn btn-primary">Add
-                                                    Booking</button>
-                                            </form>
-                                        </div> -->
-
                                         <!-- Update Booking Tab -->
                                         <div class="tab-pane" id="update">
                                             <form method="POST">
                                                 <div class="form-group">
                                                     <label for="booking_id">Booking ID</label>
-                                                    <input type="number" class="form-control" name="booking_id"
-                                                        placeholder="Booking ID" required>
+                                                    <select class="form-control" id="booking_id" name="booking_id" required>
+                                                        <option value="">Select Booking ID</option>
+                                                        <?php 
+                                                        // Reset the result set pointer
+                                                        oci_execute($rsBook);
+                                                        while ($row = oci_fetch_assoc($rsBook)): ?>
+                                                            <option value="<?php echo $row['BOOKING_ID']; ?>"><?php echo $row['BOOKING_ID']; ?></option>
+                                                        <?php endwhile; ?>
+                                                    </select>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="booking_date">Booking Date</label>
-                                                    <input type="text" class="form-control" name="booking_date"
-                                                        placeholder="Booking Date (DD/MM/YYYY)" required>
+                                                    <input type="text" class="form-control" id="booking_date" name="booking_date" placeholder="Booking Date (DD/MM/YYYY)" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="pickup_location_id">Pickup Location ID</label>
-                                                    <input type="number" class="form-control" name="pickup_location_id"
-                                                        placeholder="Pickup Location ID" required>
+                                                    <input type="number" class="form-control" id="pickup_location_id" name="pickup_location_id" placeholder="Pickup Location ID" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="dropoff_location_id">Dropoff Location ID</label>
-                                                    <input type="number" class="form-control" name="dropoff_location_id"
-                                                        placeholder="Dropoff Location ID" required>
+                                                    <input type="number" class="form-control" id="dropoff_location_id" name="dropoff_location_id" placeholder="Dropoff Location ID" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="client_id">Client ID</label>
-                                                    <input type="number" class="form-control" name="client_id"
-                                                        placeholder="Client ID" required>
+                                                    <input type="number" class="form-control" id="client_id" name="client_id" placeholder="Client ID" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="vehicle_id">Vehicle ID</label>
-                                                    <input type="number" class="form-control" name="vehicle_id"
-                                                        placeholder="Vehicle ID" required>
+                                                    <input type="number" class="form-control" id="vehicle_id" name="vehicle_id" placeholder="Vehicle ID" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="status_id">Status ID</label>
-                                                    <input type="number" class="form-control" name="status_id"
-                                                        placeholder="Status ID" required>
+                                                    <input type="number" class="form-control" id="status_id" name="status_id" placeholder="Status ID" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label for="duration">Duration</label>
-                                                    <input type="number" class="form-control" name="duration"
-                                                        placeholder="Duration" required>
+                                                    <input type="number" class="form-control" id="duration" name="duration" placeholder="Duration" required>
                                                 </div>
-                                                <button type="submit" name="update_booking" class="btn btn-info">Update
-                                                    Booking</button>
+                                                <button type="submit" name="update_booking" class="btn btn-info">Update Booking</button>
                                             </form>
                                         </div>
 
@@ -326,11 +278,9 @@ oci_execute($rsBook);
                                             <form method="POST">
                                                 <div class="form-group">
                                                     <label for="booking_id">Booking ID</label>
-                                                    <input type="number" class="form-control" name="booking_id"
-                                                        placeholder="Booking ID" required>
+                                                    <input type="number" class="form-control" name="booking_id" placeholder="Booking ID" required>
                                                 </div>
-                                                <button type="submit" name="delete_booking"
-                                                    class="btn btn-danger">Delete Booking</button>
+                                                <button type="submit" name="delete_booking" class="btn btn-danger">Delete Booking</button>
                                             </form>
                                         </div>
 
@@ -350,7 +300,10 @@ oci_execute($rsBook);
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    <?php while ($row = oci_fetch_assoc($rsBook)): ?>
+                                                    <?php 
+                                                    // Reset the result set pointer before fetching data for the table
+                                                    oci_execute($rsBook);
+                                                    while ($row = oci_fetch_assoc($rsBook)): ?>
                                                         <tr>
                                                             <td><?php echo $row['BOOKING_ID']; ?></td>
                                                             <td><?php echo $row['BOOKING_DATE']; ?></td>
@@ -384,7 +337,50 @@ oci_execute($rsBook);
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.1/dist/js/adminlte.min.js"></script>
-    
+    <script>
+        $(document).ready(function() {
+            $('#booking_id').change(function() {
+                var bookingId = $(this).val();
+                if (bookingId) {
+                    $.ajax({
+                        url: 'get_booking_details.php', // PHP script to fetch booking details
+                        type: 'POST',
+                        data: { booking_id: bookingId },
+                        success: function(response) {
+                            var bookingDetails = JSON.parse(response);
+                            if (bookingDetails) {
+                                // Populate the form fields with the fetched data
+                                $('#booking_date').val(bookingDetails.BOOKING_DATE);
+                                $('#pickup_location_id').val(bookingDetails.PICKUP_LOCATION_ID);
+                                $('#dropoff_location_id').val(bookingDetails.DROPOFF_LOCATION_ID);
+                                $('#client_id').val(bookingDetails.CLIENT_ID);
+                                $('#vehicle_id').val(bookingDetails.VEHICLE_ID);
+                                $('#status_id').val(bookingDetails.STATUS_ID);
+                                $('#duration').val(bookingDetails.DURATION);
+                            } else {
+                                // Clear the fields if no data is found
+                                $('#booking_date').val('');
+                                $('#pickup_location_id').val('');
+                                $('#dropoff_location_id').val('');
+                                $('#client_id').val('');
+                                $('#vehicle_id').val('');
+                                $('#status_id').val('');
+                                $('#duration').val('');
+                            }
+                        }
+                    });
+                } else {
+                    // Clear the fields if no booking is selected
+                    $('#booking_date').val('');
+                    $('#pickup_location_id').val('');
+                    $('#dropoff_location_id').val('');
+                    $('#client_id').val('');
+                    $('#vehicle_id').val('');
+                    $('#status_id').val('');
+                    $('#duration').val('');
+                }
+            });
+        });
+    </script>
 </body>
-
 </html>

@@ -73,7 +73,8 @@ while ($row = oci_fetch_assoc($rideStmt)) {
 $vehicleQuery = "SELECT veh.VEHICLE_ID, veh.VEHICLE_NAME, veh.RATE_PER_DAY 
                 FROM CARRENTAL.VEHICLE veh
                 JOIN CARRENTAL.STATUS sts ON veh.STATUS_ID = sts.STATUS_ID
-                WHERE UPPER(TO_CHAR(sts.STATUS_DESC)) = 'AVAILABLE'";
+                WHERE sts.STATUS_ID = 5";
+                // -- WHERE sts.STATUS_TYPE = 'Available'";
 
 $vehicleStmt = oci_parse($conn, $vehicleQuery);
 if (!$vehicleStmt) {

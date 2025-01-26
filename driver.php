@@ -166,6 +166,12 @@ oci_execute($rsDriver);
                                 <p>Feedbacks</p>
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a href="logoutAdmin.php" class="nav-link">
+                                <i class="nav-icon fas fa-sign-out-alt"></i>
+                                <p>Logout</p>
+                            </a>
+                        </li>
                     </ul>
                 </nav>
             </div>
@@ -244,45 +250,52 @@ oci_execute($rsDriver);
                                             </form>
                                         </div>
 
-                                        <!-- Update Driver Tab -->
-                                        <div class="tab-pane" id="update">
-                                            <form method="POST">
-                                                <div class="form-group">
-                                                    <label for="driver_id">Driver ID</label>
-                                                    <input type="number" class="form-control" name="driver_id" placeholder="Driver ID" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="driver_name">Driver Name</label>
-                                                    <input type="text" class="form-control" name="driver_name" placeholder="Driver Name" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="driver_pnum">Driver Phone Number</label>
-                                                    <input type="text" class="form-control" name="driver_pnum" placeholder="Driver Phone Number" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="rating">Rating</label>
-                                                    <input type="number" step="0.1" class="form-control" name="rating" placeholder="Rating" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="license_num">License Number</label>
-                                                    <input type="text" class="form-control" name="license_num" placeholder="License Number" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="status_id">Status ID</label>
-                                                    <input type="number" class="form-control" name="status_id" placeholder="Status ID" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="rate">Rate</label>
-                                                    <input type="number" class="form-control" name="rate" placeholder="Rate" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="onleave_rate">On Leave Rate</label>
-                                                    <input type="number" class="form-control" name="onleave_rate" placeholder="On Leave Rate" required>
-                                                </div>
-                                                <button type="submit" name="update_driver" class="btn btn-info">Update Driver</button>
-                                            </form>
-                                        </div>
-
+<!-- Update Driver Tab -->
+<div class="tab-pane" id="update">
+    <form method="POST">
+        <div class="form-group">
+            <label for="driver_id">Driver ID</label>
+            <select class="form-control" id="driver_id" name="driver_id" required>
+                <option value="">Select Driver ID</option>
+                <?php 
+                // Reset the result set pointer
+                oci_execute($rsDriver);
+                while ($row = oci_fetch_assoc($rsDriver)): ?>
+                    <option value="<?php echo $row['DRIVER_ID']; ?>"><?php echo $row['DRIVER_ID']; ?></option>
+                <?php endwhile; ?>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="driver_name">Driver Name</label>
+            <input type="text" class="form-control" id="driver_name" name="driver_name" placeholder="Driver Name" required>
+        </div>
+        <div class="form-group">
+            <label for="driver_pnum">Driver Phone Number</label>
+            <input type="text" class="form-control" id="driver_pnum" name="driver_pnum" placeholder="Driver Phone Number" required>
+        </div>
+        <div class="form-group">
+            <label for="rating">Rating</label>
+            <input type="number" step="0.1" class="form-control" id="rating" name="rating" placeholder="Rating" required>
+        </div>
+        <div class="form-group">
+            <label for="license_num">License Number</label>
+            <input type="text" class="form-control" id="license_num" name="license_num" placeholder="License Number" required>
+        </div>
+        <div class="form-group">
+            <label for="status_id">Status ID</label>
+            <input type="number" class="form-control" id="status_id" name="status_id" placeholder="Status ID" required>
+        </div>
+        <div class="form-group">
+            <label for="rate">Rate</label>
+            <input type="number" class="form-control" id="rate" name="rate" placeholder="Rate" required>
+        </div>
+        <div class="form-group">
+            <label for="onleave_rate">On Leave Rate</label>
+            <input type="number" class="form-control" id="onleave_rate" name="onleave_rate" placeholder="On Leave Rate" required>
+        </div>
+        <button type="submit" name="update_driver" class="btn btn-info">Update Driver</button>
+    </form>
+</div>
                                         <!-- Delete Driver Tab -->
                                         <div class="tab-pane" id="delete">
                                             <form method="POST">
@@ -310,7 +323,10 @@ oci_execute($rsDriver);
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    <?php while ($row = oci_fetch_assoc($rsDriver)): ?>
+                                                    <?php 
+                                                    // Reset the result set pointer
+                                                    oci_execute($rsDriver);
+                                                    while ($row = oci_fetch_assoc($rsDriver)): ?>
                                                         <tr>
                                                             <td><?php echo $row['DRIVER_ID']; ?></td>
                                                             <td><?php echo $row['DRIVER_NAME']; ?></td>
@@ -344,5 +360,84 @@ oci_execute($rsDriver);
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.1/dist/js/adminlte.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#driver_id').change(function() {
+                var driverId = $(this).val();
+                if (driverId) {
+                    $.ajax({
+                        url: 'get_driver_details.php',
+                        type: 'POST',
+                        data: { driver_id: driverId },
+                        success: function(response) {
+                            var driverDetails = JSON.parse(response);
+                            $('#driver_name').val(driverDetails.DRIVER_NAME);
+                            $('#driver_pnum').val(driverDetails.DRIVER_PNUM);
+                            $('#rating').val(driverDetails.RATING);
+                            $('#license_num').val(driverDetails.LICENSE_NUM);
+                            $('#status_id').val(driverDetails.STATUS_ID);
+                            $('#rate').val(driverDetails.RATE);
+                            $('#onleave_rate').val(driverDetails.ONLEAVE_RATE);
+                        }
+                    });
+                } else {
+                    // Clear the fields if no driver is selected
+                    $('#driver_name').val('');
+                    $('#driver_pnum').val('');
+                    $('#rating').val('');
+                    $('#license_num').val('');
+                    $('#status_id').val('');
+                    $('#rate').val('');
+                    $('#onleave_rate').val('');
+                }
+            });
+        });
+    </script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $('#driver_id').change(function() {
+            var driverId = $(this).val();
+            if (driverId) {
+                $.ajax({
+                    url: 'get_driver_details.php', // PHP script to fetch driver details
+                    type: 'POST',
+                    data: { driver_id: driverId },
+                    success: function(response) {
+                        var driverDetails = JSON.parse(response);
+                        if (driverDetails) {
+                            // Populate the form fields with the fetched data
+                            $('#driver_name').val(driverDetails.DRIVER_NAME);
+                            $('#driver_pnum').val(driverDetails.DRIVER_PNUM);
+                            $('#rating').val(driverDetails.RATING);
+                            $('#license_num').val(driverDetails.LICENSE_NUM);
+                            $('#status_id').val(driverDetails.STATUS_ID);
+                            $('#rate').val(driverDetails.RATE);
+                            $('#onleave_rate').val(driverDetails.ONLEAVE_RATE);
+                        } else {
+                            // Clear the fields if no data is found
+                            $('#driver_name').val('');
+                            $('#driver_pnum').val('');
+                            $('#rating').val('');
+                            $('#license_num').val('');
+                            $('#status_id').val('');
+                            $('#rate').val('');
+                            $('#onleave_rate').val('');
+                        }
+                    }
+                });
+            } else {
+                // Clear the fields if no driver is selected
+                $('#driver_name').val('');
+                $('#driver_pnum').val('');
+                $('#rating').val('');
+                $('#license_num').val('');
+                $('#status_id').val('');
+                $('#rate').val('');
+                $('#onleave_rate').val('');
+            }
+        });
+    });
+</script>
 </body>
 </html>
