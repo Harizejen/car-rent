@@ -62,8 +62,8 @@ if (isset($_POST['booking_id'], $_POST['payment_method'], $_POST['amount'])) {
             throw new Exception("Payment failed: " . $e['message']);
         }
 
-        // Update booking status to "Paid" (STATUS_ID = 5)
-        $update_booking_sql = "UPDATE BOOKINGS SET STATUS_ID = 5 WHERE BOOKING_ID = :bid";
+        // Update booking status to "Paid" (STATUS_ID = 8)
+        $update_booking_sql = "UPDATE BOOKINGS SET STATUS_ID = 8 WHERE BOOKING_ID = :bid";
         $stmt_booking = oci_parse($conn, $update_booking_sql);
         oci_bind_by_name($stmt_booking, ":bid", $booking_id);
         oci_execute($stmt_booking);

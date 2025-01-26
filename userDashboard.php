@@ -317,8 +317,7 @@ try {
         <div class="dashboard-nav">
           <nav class="flex flex-col">
             <a class="nav-link active" href="#"><i class="fas fa-home mr-2"></i> Dashboard</a>
-            <a class="nav-link" href="#"><i class="fas fa-history mr-2"></i> Ride History</a>
-            <a class="nav-link" href="#"><i class="fas fa-wallet mr-2"></i> Wallet</a>
+            <a class="nav-link" href="#ride-history"><i class="fas fa-history mr-2"></i> Ride History</a>
           </nav>
         </div>
       </div>
@@ -424,7 +423,7 @@ try {
         </div>
 
         <!-- Ride History -->
-        <div class="glass-card p-4">
+        <div class="glass-card p-4" name="ride-history" id="ride-history">
           <h4 class="text-xl font-bold mb-4">📝 Ride History</h4>
           <div class="grid grid-cols-1 gap-4">
             <?php foreach ($rides as $ride): ?>

@@ -75,7 +75,7 @@ try {
                         <p><strong>Booking Date:</strong> <?= htmlspecialchars($payment['BOOKING_DATE']) ?></p>
 
                         <div class="text-center mt-4">
-                            <a href="index.php" class="btn btn-primary">Return to Dashboard</a>
+                            <a href="userDashboard.php" class="btn btn-primary">Return to Dashboard</a>
                         </div>
                     </div>
                 </div>
